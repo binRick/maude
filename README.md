@@ -225,6 +225,44 @@ docker compose down
 brew services stop ollama   # if you also want to stop host ollama
 ```
 
+## Usage examples
+
+All screenshots below are real terminal output captured against this stack
+running locally — Ollama 0.4.7, LiteLLM main-stable, Qwen 2.5 Coder 14B —
+rendered with [`charmbracelet/freeze`](https://github.com/charmbracelet/freeze).
+
+### Stack overview — `docker ps`
+
+Healthy compose stack after `./turnup.sh` (metal mode shown — only the
+LiteLLM container; in docker mode you'd also see `maude-ollama`).
+
+![docker ps](docs/screenshots/01-docker-ps.png)
+
+### What the model is doing — `ollama ps`
+
+`PROCESSOR` is the headline number. In metal mode the host Ollama loads
+the model on the M-series GPU (`100% GPU`); in docker mode it falls back
+to `100% CPU` and pegs every core during generation.
+
+![ollama ps](docs/screenshots/02-ollama-ps.png)
+
+### Use the model directly — `curl` the OpenAI-compatible endpoint
+
+Anything that speaks OpenAI v1 works against `http://127.0.0.1:4000`.
+Here the model returns a real GCD implementation in response to a chat
+completion call.
+
+![curl litellm](docs/screenshots/03-curl.png)
+
+### Agentic editing — `maude-gpu` driving Aider
+
+The launcher mounts your CWD into the Aider container, points it at the
+local LiteLLM endpoint, and lets the model read and write files. Below is
+a non-interactive invocation (`--message ... --yes-always`) that creates a
+file from scratch.
+
+![maude-gpu](docs/screenshots/04-aider-session.png)
+
 ## OpenAI-compatible endpoint
 
 LiteLLM exposes one model name, `qwen-coder`, at `http://127.0.0.1:4000`.
