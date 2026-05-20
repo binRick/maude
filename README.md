@@ -47,6 +47,81 @@ that turns up the same way on any machine, with or without internet.
 | Glue | Bash scripts | — | `fetch-assets.sh`, `turnup.sh`, `maude`, `maude-cpu`, `maude-gpu`. Tested with `set -euo pipefail`. |
 | Asset storage | local filesystem (default) | — | `assets/` is gitignored. Git LFS patterns are pre-declared in `.gitattributes` if you want to vendor them. |
 
+## About the model — Qwen 2.5 Coder
+
+**Maker.** [Alibaba Cloud's Qwen team](https://qwenlm.github.io/). The 2.5-Coder
+family was released in late 2024 as a code-specialised continuation of Qwen 2.5.
+Apache-2.0 weights, distributed via Hugging Face and the Ollama registry.
+Technical report: [arXiv 2409.12186](https://arxiv.org/abs/2409.12186).
+
+**Family.** Six sizes — 0.5B, 1.5B, 3B, 7B, **14B (the one this stack ships
+with)**, and 32B. The 14B is the practical sweet spot for a 32 GB Apple Silicon
+machine; the 32B is positioned by the Qwen team as the strongest open-weight
+code model published in its release window. Smaller variants exist for
+edge / completion-only use cases.
+
+**Training.** Qwen 2.5 base + ~5.5 trillion additional tokens of code-heavy
+material. Includes fill-in-the-middle (FIM) training and explicit structural
+tokens for repository boundaries, which helps when the model is asked to
+reason across files rather than just inside one function.
+
+**Capabilities.**
+
+- Code generation across **92+ programming languages**.
+- Code completion and infilling (good fit for IDE-style use).
+- Bug repair, refactoring, code-to-text explanation.
+- 32k native context; extendable to 128k via YaRN positional scaling
+  (this stack uses the default `qwen2.5-coder:14b` tag; the 32k Modelfile
+  variant was dropped because it overshoots the Docker VM's RAM ceiling on
+  a 32 GB host — see Troubleshooting).
+- No tool-calling / function-calling protocol in the base release.
+  (Aider compensates by parsing diffs from plain-text replies — slower and
+  less reliable than native tool use, but it works.)
+
+**Reported benchmarks.**
+
+| Benchmark | Qwen 2.5 Coder 14B | Qwen 2.5 Coder 32B Instruct |
+|---|---|---|
+| HumanEval (pass@1)             | ~89.9% | 92.7% |
+| MBPP+ (pass@1)                 | ~82%   | 90.2% |
+| EvalPlus (composite)           | —      | Best open-source result at release; beats DeepSeek-Coder-V2-Instruct. |
+
+(Numbers from the Qwen technical report and Ollama / Open Laboratory write-ups
+— see "Further reading" below.)
+
+### How does it compare to Claude Opus?
+
+Honest answer: it's a different weight class, and the framing depends on what
+you're measuring.
+
+| Dimension | Qwen 2.5 Coder 14B (local) | Claude Opus 4.7 (hosted) |
+|---|---|---|
+| Parameter count | ~14 B (open weights) | not disclosed; orders of magnitude larger |
+| Where it runs | Your laptop, offline, no API key | Anthropic API, paid, requires internet |
+| HumanEval-style **single-function** tasks | ~90% (competitive — the benchmark saturates here) | High, but this benchmark stopped being a discriminator years ago |
+| **SWE-bench Verified** (real GitHub issues, agentic) | Open small models trail badly without heavy scaffolding | **82.4%** — current state-of-the-art |
+| Long-horizon agentic work, multi-file refactors | Loses thread quickly, repeats edits, struggles with planning | Strong; this is what Claude Code is built on |
+| Native tool / function calling, MCP | None in the base model | First-class |
+| Multimodal input (images, PDFs, diagrams) | No | Yes |
+| Privacy / data residency | Stays on your disk | Sent to Anthropic's API |
+| Latency for short replies | A few seconds local (GPU) / tens of seconds (CPU) | Sub-second typical |
+| Cost per token | $0 after install | Hosted pricing |
+
+**The honest framing.** If you want a code completion that fills in a function
+body, refactors a class, or rewrites a regex, Qwen 2.5 Coder 14B is usually
+fine — and being local + free + private is a meaningful advantage. If you
+want to hand the assistant a real GitHub issue, let it browse the codebase,
+run tests, and iterate to a passing PR, you want Opus (and a paid API key).
+This repo is the former, not the latter. Use the right tool for the size of
+the task.
+
+### Further reading
+
+- Qwen 2.5 Coder technical report — [arXiv:2409.12186](https://arxiv.org/abs/2409.12186)
+- Qwen 2.5 Coder blog post — [qwenlm.github.io/blog/qwen2.5-coder/](https://qwenlm.github.io/blog/qwen2.5-coder/)
+- Open Laboratory model card — [Qwen 2.5 Coder 32B](https://openlaboratory.ai/models/qwen-2_5-coder-32b)
+- Anthropic Claude Opus 4.7 benchmarks — [Vellum write-up](https://www.vellum.ai/blog/claude-opus-4-7-benchmarks-explained)
+
 ## Architecture
 
 ```mermaid
