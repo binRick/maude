@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+#
+# Launch Aider against the local LiteLLM proxy.
+#
+#   MODE=docker (default)  Ollama in container, CPU.
+#   MODE=metal             Ollama on host, Metal GPU.
+#
+# Either way, Aider runs in the on-demand `aider` container with the current
+# directory mounted at /workspace.
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
+WORKDIR="$(pwd)"
+
+MODE="${MODE:-docker}"
+export MODE
+
+case "$MODE" in
+  docker) profiles=docker-backend ;;
+  metal)  profiles= ;;
+  *) echo "MODE must be 'docker' or 'metal' (got '$MODE')" >&2; exit 1 ;;
+esac
+
+# Bring backend up if it isn't (idempotent).
+(cd "$REPO_ROOT" && COMPOSE_PROFILES="$profiles" docker compose up -d >/dev/null)
+
+exec docker compose \
+  --project-directory "$REPO_ROOT" \
+  run --rm \
+  -v "$WORKDIR:/workspace" \
+  --user "$(id -u):$(id -g)" \
+  -e HOME=/workspace \
+  aider \
+  --model openai/qwen-coder \
+  --openai-api-base http://litellm:4000 \
+  --openai-api-key sk-claude-offline-local \
+  "$@"

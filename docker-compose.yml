@@ -1,0 +1,70 @@
+name: claude-offline
+
+# Two backend modes, selected by the MODE env var (default: docker):
+#
+#   MODE=docker  — Ollama runs as a container in the `docker-backend` profile.
+#                  Self-contained, CPU-only on Apple Silicon (Metal isn't
+#                  exposed to Linux guests).
+#
+#   MODE=metal   — Ollama runs natively on the macOS host with Metal/GPU
+#                  acceleration. Only LiteLLM (and on-demand Aider) live in
+#                  this stack. LiteLLM reaches the host via
+#                  host.docker.internal.
+#
+# turnup.sh and the claude-offline launcher honour MODE and set the right
+# profile / compose-file behaviour automatically.
+
+services:
+  ollama:
+    image: ollama/ollama:0.4.7
+    container_name: claude-offline-ollama
+    restart: unless-stopped
+    profiles: ["docker-backend"]
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ./assets/ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    container_name: claude-offline-litellm
+    restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy
+        required: false      # in metal mode the ollama service isn't enabled
+    ports:
+      - "127.0.0.1:4000:4000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # metal mode reaches host here
+    volumes:
+      - ./litellm/config.${MODE:-docker}.yaml:/app/config.yaml:ro
+    command: ["--config", "/app/config.yaml", "--port", "4000", "--host", "0.0.0.0"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness', timeout=2).status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  # On-demand: invoked by the claude-offline launcher.
+  aider:
+    build: ./aider
+    image: claude-offline/aider:local
+    profiles: ["cli"]
+    depends_on:
+      litellm:
+        condition: service_healthy
+    environment:
+      OPENAI_API_BASE: http://litellm:4000
+      OPENAI_API_KEY: sk-claude-offline-local
+    working_dir: /workspace
+    volumes:
+      - ${CLAUDE_OFFLINE_WORKDIR:-./}:/workspace
+    entrypoint: ["aider"]
