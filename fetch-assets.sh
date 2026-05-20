@@ -31,7 +31,7 @@ BASE_MODEL="qwen2.5-coder:${MODEL_SIZE}"
 
 OLLAMA_IMAGE="ollama/ollama:0.4.7"
 LITELLM_IMAGE="ghcr.io/berriai/litellm:main-stable"
-AIDER_IMAGE="claude-offline/aider:local"
+AIDER_IMAGE="maude/aider:local"
 
 say()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[!]\033[0m %s\n' "$*"; }
@@ -71,29 +71,29 @@ save_image "$AIDER_IMAGE" assets/images/aider.tar
 # blobs land in the repo, not in a docker-managed volume. Same dir gets mounted
 # by the real `up` later.
 say "Starting throwaway Ollama to pull $BASE_MODEL into assets/ollama-data"
-docker rm -f claude-offline-bundle-ollama >/dev/null 2>&1 || true
+docker rm -f maude-bundle-ollama >/dev/null 2>&1 || true
 docker run -d --rm \
-  --name claude-offline-bundle-ollama \
+  --name maude-bundle-ollama \
   -v "$REPO_ROOT/assets/ollama-data:/root/.ollama" \
   -p 127.0.0.1:11500:11434 \
   "$OLLAMA_IMAGE" >/dev/null
 
-cleanup() { docker rm -f claude-offline-bundle-ollama >/dev/null 2>&1 || true; }
+cleanup() { docker rm -f maude-bundle-ollama >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
 # Wait for it to come up.
 for _ in $(seq 1 60); do
-  if docker exec claude-offline-bundle-ollama ollama list >/dev/null 2>&1; then
+  if docker exec maude-bundle-ollama ollama list >/dev/null 2>&1; then
     break
   fi
   sleep 1
 done
 
-if docker exec claude-offline-bundle-ollama ollama list | awk '{print $1}' | grep -qx "$BASE_MODEL"; then
+if docker exec maude-bundle-ollama ollama list | awk '{print $1}' | grep -qx "$BASE_MODEL"; then
   say "Base model $BASE_MODEL already in assets/ollama-data."
 else
   say "Pulling $BASE_MODEL (this can take a while)..."
-  docker exec claude-offline-bundle-ollama ollama pull "$BASE_MODEL"
+  docker exec maude-bundle-ollama ollama pull "$BASE_MODEL"
 fi
 
 cleanup

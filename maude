@@ -34,5 +34,5 @@ exec docker compose \
   aider \
   --model openai/qwen-coder \
   --openai-api-base http://litellm:4000 \
-  --openai-api-key sk-claude-offline-local \
+  --openai-api-key sk-maude-local \
   "$@"

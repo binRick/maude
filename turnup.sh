@@ -72,7 +72,7 @@ if [[ "$MODE" == "docker" ]]; then
     warn "or 'docker compose exec ollama ollama pull qwen2.5-coder:14b' after start."
   fi
   COMPOSE_PROFILES=docker-backend
-  EXPECTED_CONTAINERS=(claude-offline-ollama claude-offline-litellm)
+  EXPECTED_CONTAINERS=(maude-ollama maude-litellm)
 else
   # metal mode
   command -v ollama >/dev/null || { warn "Native ollama not installed. Run: brew install ollama"; exit 1; }
@@ -125,7 +125,7 @@ else
   say "Host ollama has qwen2.5-coder:14b."
 
   COMPOSE_PROFILES=""
-  EXPECTED_CONTAINERS=(claude-offline-litellm)
+  EXPECTED_CONTAINERS=(maude-litellm)
 fi
 
 # --- 3. Start the stack ------------------------------------------------------
@@ -161,7 +161,7 @@ say "Stack is up:  http://127.0.0.1:4000 (litellm)"
 [[ "$MODE" == "metal"  ]] && say "             http://127.0.0.1:11434 (ollama, host-native, Metal)"
 echo
 echo "  Use it inside any git repo:"
-echo "      $REPO_ROOT/claude-offline"
+echo "      $REPO_ROOT/maude"
 echo
 if [[ "$MODE" == "docker" ]]; then
   echo "  Tear down with:  COMPOSE_PROFILES=docker-backend docker compose down"

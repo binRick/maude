@@ -1,4 +1,4 @@
-name: claude-offline
+name: maude
 
 # Two backend modes, selected by the MODE env var (default: docker):
 #
@@ -11,13 +11,13 @@ name: claude-offline
 #                  this stack. LiteLLM reaches the host via
 #                  host.docker.internal.
 #
-# turnup.sh and the claude-offline launcher honour MODE and set the right
+# turnup.sh and the maude launcher honour MODE and set the right
 # profile / compose-file behaviour automatically.
 
 services:
   ollama:
     image: ollama/ollama:0.4.7
-    container_name: claude-offline-ollama
+    container_name: maude-ollama
     restart: unless-stopped
     profiles: ["docker-backend"]
     ports:
@@ -33,7 +33,7 @@ services:
 
   litellm:
     image: ghcr.io/berriai/litellm:main-stable
-    container_name: claude-offline-litellm
+    container_name: maude-litellm
     restart: unless-stopped
     depends_on:
       ollama:
@@ -53,18 +53,18 @@ services:
       retries: 12
       start_period: 20s
 
-  # On-demand: invoked by the claude-offline launcher.
+  # On-demand: invoked by the maude launcher.
   aider:
     build: ./aider
-    image: claude-offline/aider:local
+    image: maude/aider:local
     profiles: ["cli"]
     depends_on:
       litellm:
         condition: service_healthy
     environment:
       OPENAI_API_BASE: http://litellm:4000
-      OPENAI_API_KEY: sk-claude-offline-local
+      OPENAI_API_KEY: sk-maude-local
     working_dir: /workspace
     volumes:
-      - ${CLAUDE_OFFLINE_WORKDIR:-./}:/workspace
+      - ${MAUDE_WORKDIR:-./}:/workspace
     entrypoint: ["aider"]

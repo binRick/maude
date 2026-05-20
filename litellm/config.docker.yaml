@@ -19,4 +19,4 @@ general_settings:
   # Single shared key for local-only use. The proxy listens on 127.0.0.1 only
   # (see docker-compose.yml port binding), so this is defence-in-depth, not
   # a real secret.
-  master_key: sk-claude-offline-local
+  master_key: sk-maude-local

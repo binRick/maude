@@ -1,11 +1,11 @@
-# claude-offline
+# maude
 
 A fully-offline, agentic coding assistant — packaged as a Docker Compose stack
 that turns up the same way on any machine, with or without internet.
 
 ## Features
 
-- **One-command turnup.** `./turnup.sh` brings up the stack; `./claude-offline`
+- **One-command turnup.** `./turnup.sh` brings up the stack; `./maude`
   drops you into Aider against the local model.
 - **Two backend modes**, picked by `MODE=docker` (default) or `MODE=metal`:
   - `docker` — Ollama runs as a container. Single self-contained stack. CPU
@@ -61,8 +61,8 @@ The repo ships only code. Run the fetch script once on a machine with
 internet to populate `./assets/`:
 
 ```bash
-git clone git@github.com:binRick/claude-offline.git
-cd claude-offline
+git clone git@github.com:binRick/maude.git
+cd maude
 ./fetch-assets.sh
 ```
 
@@ -100,12 +100,12 @@ MODE=metal ./turnup.sh       # metal mode (Apple GPU)
 
 ```bash
 # inside any git repo
-/path/to/claude-offline/claude-offline
+/path/to/maude/maude
 ```
 
 The launcher starts the backend if it isn't running, then runs Aider in a
 one-shot container with the current directory mounted at `/workspace`.
-Add the launcher to your `PATH` and just type `claude-offline`.
+Add the launcher to your `PATH` and just type `maude`.
 
 ### 4. Tear down
 
@@ -125,12 +125,12 @@ Use it from anything that speaks OpenAI:
 
 ```bash
 curl -sS http://127.0.0.1:4000/v1/chat/completions \
-  -H "Authorization: Bearer sk-claude-offline-local" \
+  -H "Authorization: Bearer sk-maude-local" \
   -H "Content-Type: application/json" \
   -d '{"model":"qwen-coder","messages":[{"role":"user","content":"hi"}]}'
 ```
 
-The `sk-claude-offline-local` key is set in `litellm/config.*.yaml`. The
+The `sk-maude-local` key is set in `litellm/config.*.yaml`. The
 proxy is bound to `127.0.0.1` only; the key is defence-in-depth, not a
 secret.
 
@@ -145,7 +145,7 @@ secret.
 ├── aider/Dockerfile            # python:3.12-slim + pinned aider-chat
 ├── fetch-assets.sh             # online: pull & save images, prefetch model blobs
 ├── turnup.sh                   # offline: docker load + compose up (MODE-aware)
-├── claude-offline              # launcher: docker compose run --rm aider …
+├── maude              # launcher: docker compose run --rm aider …
 ├── .gitattributes              # LFS patterns (not active unless you enable LFS)
 └── assets/                     # (gitignored by default)
     ├── images/*.tar
@@ -167,7 +167,7 @@ truly clone-and-run repo:
    storage / 1 GB bandwidth per month and a 14b bundle is ~11 GB).
 3. **Host assets elsewhere.** Push `assets/` to S3 / R2 / HuggingFace / a
    GitHub Release. Extend `fetch-assets.sh` with a download path that pulls
-   from your bucket when an env var like `CLAUDE_OFFLINE_ASSETS_URL` is set.
+   from your bucket when an env var like `MAUDE_ASSETS_URL` is set.
 
 ## Troubleshooting
 
@@ -186,7 +186,7 @@ can't reach the Apple GPU. Switch to `MODE=metal`.
 
 **Container ollama isn't visible to `docker compose down`.** It's
 profile-scoped. Either `COMPOSE_PROFILES=docker-backend docker compose down`
-or `docker rm -f claude-offline-ollama`.
+or `docker rm -f maude-ollama`.
 
 **LiteLLM in metal mode can't reach the host.** `turnup.sh` sets
 `OLLAMA_HOST=0.0.0.0:11434` via `launchctl setenv` and restarts the brew
