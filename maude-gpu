@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# maude-gpu — launch maude in metal mode (Ollama on host, Apple GPU inference).
+export MODE=metal
+exec "$(cd "$(dirname "$0")" && pwd)/maude" "$@"

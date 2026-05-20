@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# maude-cpu — launch maude in docker mode (Ollama in a container, CPU inference).
+export MODE=docker
+exec "$(cd "$(dirname "$0")" && pwd)/maude" "$@"
