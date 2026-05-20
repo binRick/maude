@@ -6,42 +6,70 @@ that turns up the same way on any machine, with or without internet.
 ## Features
 
 - **One-command turnup.** `./turnup.sh` brings up the stack; `./maude`
-  drops you into Aider against the local model.
+  drops you into Aider against the local model. `./maude-cpu` and
+  `./maude-gpu` are thin wrappers that preset the backend mode.
 - **Two backend modes**, picked by `MODE=docker` (default) or `MODE=metal`:
-  - `docker` — Ollama runs as a container. Single self-contained stack. CPU
-    inference on macOS (Linux containers can't see Apple's Metal GPU).
+  - `docker` — Ollama runs as a container. Single self-contained stack.
+    CPU inference on macOS (Linux containers can't see Apple's Metal GPU).
+    Saturates all cores during generation.
   - `metal` — Ollama runs natively on the macOS host with Metal/GPU
-    acceleration. ~5–10× faster generation on Apple Silicon. Only LiteLLM
-    and Aider live in compose.
+    acceleration. Roughly 5–10× faster generation on Apple Silicon and
+    keeps the CPU idle. Only LiteLLM and Aider live in compose.
 - **OpenAI-compatible endpoint** at `http://127.0.0.1:4000` via LiteLLM, so
-  anything that speaks OpenAI (Aider, OpenWebUI, custom scripts, IDE
-  extensions) just works.
+  anything that speaks OpenAI (Aider, OpenWebUI, IDE plugins, custom
+  scripts) just works against the local model.
 - **Agentic coding via Aider**, run on demand in a sidecar container with
-  the current directory mounted at `/workspace`.
-- **Reproducible fully-offline turnup.** `./fetch-assets.sh` once on an
-  online machine produces a self-contained `./assets/` tree; `./turnup.sh`
-  on the offline machine never touches the network.
-- **Pinned versions** for every container and model — Ollama 0.4.7,
-  LiteLLM main-stable, Aider 0.69.1, Qwen 2.5 Coder 14B.
-- **Local-only.** Both LiteLLM and Ollama bind to `127.0.0.1`. No telemetry
-  outbound by design.
+  the current directory mounted at `/workspace`. Files Aider writes land
+  on the host with your UID (the launcher passes `--user $(id -u):$(id -g)`).
+- **Reproducible offline turnup.** `./fetch-assets.sh` once on an online
+  machine produces a self-contained `./assets/` tree (saved Docker images
+  + Ollama model blobs); `./turnup.sh` on the offline machine then never
+  touches the network. Idempotent — re-runnable, skips work already done.
+- **Pinned versions** end to end — Ollama 0.4.7, LiteLLM main-stable, Aider
+  0.69.1, Qwen 2.5 Coder 14B. Mode swaps don't change the model behaviour.
+- **Local-only by design.** Both LiteLLM and Ollama bind to `127.0.0.1`.
+  No telemetry, no outbound calls after fetch-assets completes.
+- **Healthchecked.** Containers expose proper Docker healthchecks; turnup
+  blocks until services report healthy before printing success.
+- **Profile-scoped services.** Ollama lives in the `docker-backend`
+  Compose profile so metal mode excludes it cleanly; Aider lives in the
+  `cli` profile so it never runs on its own — only via the launcher.
+
+## Tech stack
+
+| Layer | Component | Pinned version | Role |
+|---|---|---|---|
+| Model | [Qwen 2.5 Coder 14B](https://ollama.com/library/qwen2.5-coder) | `qwen2.5-coder:14b` | Code-tuned 14B-parameter LLM. ~9 GB on disk, ~10 GiB resident. |
+| Model server | [Ollama](https://ollama.com) | `ollama/ollama:0.4.7` | Loads the GGUF weights, exposes the Ollama HTTP API on :11434. Metal-aware on host; CPU-only in containers. |
+| OpenAI shim | [LiteLLM](https://github.com/BerriAI/litellm) | `ghcr.io/berriai/litellm:main-stable` | Translates OpenAI `/v1/chat/completions` to Ollama's API. One LiteLLM config per backend mode (`config.docker.yaml`, `config.metal.yaml`). |
+| Agent | [Aider](https://aider.chat) | `aider-chat==0.69.1` | Agentic git-aware editor. Runs in a `python:3.12-slim` sidecar built locally. |
+| Orchestration | Docker Compose v2 | n/a | Single `docker-compose.yml`; services gated by profiles (`docker-backend`, `cli`) and the `MODE` env var. |
+| Glue | Bash scripts | — | `fetch-assets.sh`, `turnup.sh`, `maude`, `maude-cpu`, `maude-gpu`. Tested with `set -euo pipefail`. |
+| Asset storage | local filesystem (default) | — | `assets/` is gitignored. Git LFS patterns are pre-declared in `.gitattributes` if you want to vendor them. |
 
 ## Architecture
 
-```
-   ┌────────────────┐        OpenAI v1            ┌────────────────┐
-   │   Aider CLI    │ ─────────────────────────▶  │   LiteLLM      │
-   │  (container,   │                              │  (container,   │
-   │   on demand)   │                              │  127.0.0.1:4000)│
-   └────────────────┘                              └────────┬───────┘
-                                                            │ Ollama API
-                                                            ▼
-                                       ┌─────────────────────────────────┐
-                                       │ Ollama                          │
-                                       │  • MODE=docker → container      │
-                                       │  • MODE=metal  → host (Metal)   │
-                                       │  qwen2.5-coder:14b              │
-                                       └─────────────────────────────────┘
+```mermaid
+flowchart LR
+    Dev([Developer]) --> Aider
+
+    subgraph compose["Docker Compose stack"]
+        direction LR
+        Aider["Aider CLI<br/>on-demand sidecar<br/>profile: cli"]
+        LiteLLM["LiteLLM proxy<br/>OpenAI v1 @ :4000"]
+        Aider -- "OpenAI v1" --> LiteLLM
+    end
+
+    LiteLLM -. "MODE=docker" .-> OllamaC["Ollama container<br/>(CPU)"]
+    LiteLLM -. "MODE=metal<br/>host.docker.internal" .-> OllamaH["Ollama on host<br/>(Metal GPU)"]
+
+    OllamaC --> Model[("qwen2.5-coder:14b")]
+    OllamaH --> Model
+
+    classDef container fill:#e8f1fc,stroke:#5a8dc7,color:#0a2540
+    classDef host fill:#fdf0e6,stroke:#c98140,color:#3a1f08
+    class Aider,LiteLLM,OllamaC container
+    class OllamaH host
 ```
 
 ## Prerequisites
@@ -99,13 +127,17 @@ MODE=metal ./turnup.sh       # metal mode (Apple GPU)
 ### 3. Use Aider against the local model
 
 ```bash
-# inside any git repo
+# inside any git repo — default (docker mode, CPU)
 /path/to/maude/maude
+
+# convenience wrappers
+/path/to/maude/maude-cpu        # MODE=docker (container Ollama)
+/path/to/maude/maude-gpu        # MODE=metal  (host Ollama, Apple GPU)
 ```
 
 The launcher starts the backend if it isn't running, then runs Aider in a
 one-shot container with the current directory mounted at `/workspace`.
-Add the launcher to your `PATH` and just type `maude`.
+Add the launcher to your `PATH` and just type `maude` (or `maude-gpu`).
 
 ### 4. Tear down
 
@@ -145,7 +177,9 @@ secret.
 ├── aider/Dockerfile            # python:3.12-slim + pinned aider-chat
 ├── fetch-assets.sh             # online: pull & save images, prefetch model blobs
 ├── turnup.sh                   # offline: docker load + compose up (MODE-aware)
-├── maude              # launcher: docker compose run --rm aider …
+├── maude                       # launcher: docker compose run --rm aider …
+├── maude-cpu                   # wrapper: MODE=docker maude …
+├── maude-gpu                   # wrapper: MODE=metal  maude …
 ├── .gitattributes              # LFS patterns (not active unless you enable LFS)
 └── assets/                     # (gitignored by default)
     ├── images/*.tar

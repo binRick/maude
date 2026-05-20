@@ -1,8 +1,13 @@
 # Local-machine bundled assets — too big for plain git. Regenerate with
-# ./bundle.sh on a machine with internet. If you want to vendor these for
-# air-gapped turnup, enable Git LFS (.gitattributes already lists the patterns)
-# and remove this line.
+# ./fetch-assets.sh on a machine with internet. If you want to vendor these
+# for air-gapped turnup, enable Git LFS (.gitattributes already lists the
+# patterns) and remove this line.
 assets/
 
 # Local docker compose overrides.
 docker-compose.override.yml
+
+# Aider's own state files + pip cache (written into /workspace because the
+# launcher sets HOME=/workspace inside the aider container).
+.aider*
+.local/
