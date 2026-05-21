@@ -1,7 +1,30 @@
 # maude
 
-A fully-offline, agentic coding assistant — packaged as a Docker Compose stack
-that turns up the same way on any machine, with or without internet.
+**Real agentic coding, fully on your laptop.**
+
+<sub>**no cloud** · **no Claude** · **no API key** · **no internet** · **no bill at the end of the month**</sub>
+
+A coding agent that reads, writes, greps, and shells against your codebase
+— and never phones home. Open-weight model on your own GPU, structured
+tool calls for real file edits, the whole stack in one repo. After the
+first asset fetch, the network cable can come out.
+
+- **No cloud.** Nothing leaves the machine. No API rate limits, no
+  proxy in front of your code, no trust handed to a vendor's data
+  retention policy.
+- **No Claude.** No OpenAI. No Gemini. The whole inference pipeline is
+  Qwen 3 Coder 30B-A3B running on your own Apple Silicon (or any GPU
+  Ollama supports).
+- **Offline.** Run `./fetch-assets.sh` once with internet to bundle the
+  images and model. After that, `./turnup.sh` boots the whole stack with
+  zero outbound calls. No telemetry. No update pings.
+- **$0/month.** Hosted coding agents bill per million tokens. maude bills
+  electricity. A long refactor session is cents.
+
+It is not Claude Opus. It will not one-shot a multi-file migration on a
+new codebase. But for short, well-scoped agentic edits — write this file,
+fix this bug, refactor this function, scaffold this test — it is *good
+enough that you actually use it*, and it costs nothing to run.
 
 ## Features
 
