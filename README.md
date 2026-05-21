@@ -349,3 +349,19 @@ make sure it's not bound to loopback only.
   the loopback interface is mapped — your macOS firewall still gates any
   inbound traffic; this stack is local-only.
 - No telemetry. No outbound calls after `fetch-assets.sh` finishes.
+
+<!-- scc-start -->
+## Code Statistics
+
+| Language | Files | Lines | Blanks | Comments | Code | Complexity |
+|---|---|---|---|---|---|---|
+| BASH | 3 | 46 | 6 | 14 | 26 | 4 |
+| YAML | 3 | 109 | 10 | 27 | 72 | 0 |
+| Shell | 2 | 279 | 35 | 53 | 191 | 57 |
+| Dockerfile | 1 | 22 | 5 | 5 | 12 | 3 |
+| Markdown | 1 | 351 | 77 | 0 | 274 | 0 |
+| Python | 1 | 0 | 0 | 0 | 0 | 0 |
+| **Total** | **11** | **807** | **133** | **99** | **575** | **64** |
+
+*Generated with [scc](https://github.com/boyter/scc) on 2026-05-20*
+<!-- scc-end -->
