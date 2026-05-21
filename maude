@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
 #
-# Launch Aider against the local LiteLLM proxy.
+# Launch OpenCode against the local model.
 #
 #   MODE=docker (default)  Ollama in container, CPU.
 #   MODE=metal             Ollama on host, Metal GPU.
 #
-# Either way, Aider runs in the on-demand `aider` container with the current
-# directory mounted at /workspace.
+# OpenCode runs natively (it's a single static binary) and talks directly
+# to Ollama's OpenAI-compat endpoint on :11434/v1 — bypassing LiteLLM,
+# which currently has a bug forwarding structured tool_calls from ollama_chat.
+# LiteLLM still gets started so other OpenAI clients can use :4000.
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
-WORKDIR="$(pwd)"
 
 MODE="${MODE:-docker}"
 export MODE
@@ -22,17 +23,15 @@ case "$MODE" in
   *) echo "MODE must be 'docker' or 'metal' (got '$MODE')" >&2; exit 1 ;;
 esac
 
+if ! command -v opencode >/dev/null; then
+  echo "opencode not found in PATH. Install it: brew install anomalyco/tap/opencode" >&2
+  exit 1
+fi
+
 # Bring backend up if it isn't (idempotent).
 (cd "$REPO_ROOT" && COMPOSE_PROFILES="$profiles" docker compose up -d >/dev/null)
 
-exec docker compose \
-  --project-directory "$REPO_ROOT" \
-  run --rm \
-  -v "$WORKDIR:/workspace" \
-  --user "$(id -u):$(id -g)" \
-  -e HOME=/workspace \
-  aider \
-  --model openai/qwen-coder \
-  --openai-api-base http://litellm:4000 \
-  --openai-api-key sk-maude-local \
-  "$@"
+# OPENCODE_CONFIG forces this repo's opencode.json regardless of the user's
+# CWD. opencode itself runs in $PWD so it can see and edit the user's files.
+export OPENCODE_CONFIG="$REPO_ROOT/opencode.json"
+exec opencode "$@"

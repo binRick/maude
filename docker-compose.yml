@@ -7,12 +7,11 @@ name: maude
 #                  exposed to Linux guests).
 #
 #   MODE=metal   — Ollama runs natively on the macOS host with Metal/GPU
-#                  acceleration. Only LiteLLM (and on-demand Aider) live in
-#                  this stack. LiteLLM reaches the host via
-#                  host.docker.internal.
+#                  acceleration. Only LiteLLM lives in this stack; it reaches
+#                  the host via host.docker.internal.
 #
-# turnup.sh and the maude launcher honour MODE and set the right
-# profile / compose-file behaviour automatically.
+# The agent (OpenCode) runs natively from the maude launcher and talks to
+# LiteLLM on 127.0.0.1:4000 — it is NOT part of the compose stack.
 
 services:
   ollama:
@@ -52,19 +51,3 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
-
-  # On-demand: invoked by the maude launcher.
-  aider:
-    build: ./aider
-    image: maude/aider:local
-    profiles: ["cli"]
-    depends_on:
-      litellm:
-        condition: service_healthy
-    environment:
-      OPENAI_API_BASE: http://litellm:4000
-      OPENAI_API_KEY: sk-maude-local
-    working_dir: /workspace
-    volumes:
-      - ${MAUDE_WORKDIR:-./}:/workspace
-    entrypoint: ["aider"]

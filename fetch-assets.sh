@@ -10,9 +10,11 @@
 #     images/
 #       ollama.tar       (docker save, ~2.3 GB)
 #       litellm.tar      (docker save, ~373 MB)
-#       aider.tar        (docker save, built locally, ~190 MB)
 #     ollama-data/
-#       models/...       (pre-pulled Ollama blobs, ~8.4 GB for 14b)
+#       models/...       (pre-pulled Ollama blobs, ~19 GB for qwen3-coder:30b)
+#
+# The agent (OpenCode) is a separate native install (brew install
+# anomalyco/tap/opencode); it isn't bundled here. See the README.
 #
 # Sources:
 #   - ollama/ollama:0.4.7                  Docker Hub
@@ -26,12 +28,11 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$REPO_ROOT"
 
-MODEL_SIZE="${MODEL_SIZE:-14b}"
-BASE_MODEL="qwen2.5-coder:${MODEL_SIZE}"
+MODEL_SIZE="${MODEL_SIZE:-30b}"
+BASE_MODEL="qwen3-coder:${MODEL_SIZE}"
 
 OLLAMA_IMAGE="ollama/ollama:0.4.7"
 LITELLM_IMAGE="ghcr.io/berriai/litellm:main-stable"
-AIDER_IMAGE="maude/aider:local"
 
 say()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[!]\033[0m %s\n' "$*"; }
@@ -61,10 +62,6 @@ save_image "$OLLAMA_IMAGE" assets/images/ollama.tar
 say "Pulling $LITELLM_IMAGE"
 docker pull "$LITELLM_IMAGE"
 save_image "$LITELLM_IMAGE" assets/images/litellm.tar
-
-say "Building $AIDER_IMAGE"
-docker build -t "$AIDER_IMAGE" ./aider
-save_image "$AIDER_IMAGE" assets/images/aider.tar
 
 # --- 2. Pre-populate the Ollama model store ----------------------------------
 # Run a throwaway ollama container against ./assets/ollama-data so the pulled

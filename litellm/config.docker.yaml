@@ -1,14 +1,14 @@
 # LiteLLM proxy config — exposes the local Ollama model as an OpenAI-compatible
-# endpoint so Aider (and anything else that speaks OpenAI) can talk to it.
+# endpoint so OpenCode (and anything else that speaks OpenAI) can talk to it.
 #
-# The model name used by clients is `qwen-coder`, mapped to qwen2.5-coder:14b
-# at Ollama's default context window. (A 32k-context variant blows past the
-# Docker VM's RAM ceiling on a 32 GB host.)
+# Clients send model=qwen-coder; LiteLLM routes to qwen3-coder:30b on the
+# Ollama container. qwen3-coder advertises tools via the OpenAI function-
+# calling protocol, which is what OpenCode needs to actually edit files.
 
 model_list:
   - model_name: qwen-coder
     litellm_params:
-      model: ollama_chat/qwen2.5-coder:14b
+      model: ollama_chat/qwen3-coder:30b
       api_base: http://ollama:11434
 
 litellm_settings:
