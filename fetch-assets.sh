@@ -12,6 +12,7 @@
 #       litellm.tar      (docker save, ~373 MB)
 #       open-webui.tar   (docker save, ~1.5 GB)
 #       webterm.tar      (docker save, ~600 MB — locally-built ttyd + opencode)
+#       nginx.tar        (docker save, ~50 MB — launcher front-end)
 #     ollama-data/
 #       models/...       (pre-pulled Ollama blobs, ~19 GB for qwen3-coder:30b)
 #
@@ -38,6 +39,7 @@ OLLAMA_IMAGE="ollama/ollama:0.4.7"
 LITELLM_IMAGE="ghcr.io/berriai/litellm:main-stable"
 WEBUI_IMAGE="ghcr.io/open-webui/open-webui:main"
 WEBTERM_IMAGE="maude-webterm:local"
+NGINX_IMAGE="nginx:alpine"
 
 say()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[!]\033[0m %s\n' "$*"; }
@@ -71,6 +73,10 @@ save_image "$LITELLM_IMAGE" assets/images/litellm.tar
 say "Pulling $WEBUI_IMAGE"
 docker pull "$WEBUI_IMAGE"
 save_image "$WEBUI_IMAGE" assets/images/open-webui.tar
+
+say "Pulling $NGINX_IMAGE"
+docker pull "$NGINX_IMAGE"
+save_image "$NGINX_IMAGE" assets/images/nginx.tar
 
 # webterm is built locally from ./webterm/Dockerfile — there's no upstream
 # pull. The build itself reaches out to deb.nodesource.com, the npm registry,

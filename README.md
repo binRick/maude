@@ -52,6 +52,12 @@ enough that you actually use it*, and it costs nothing to run.
   and the Open WebUI chat at :3000 for non-agentic prompting. The
   browser terminal is a real PTY — same opencode, same tool calls, same
   on-disk edits — just rendered through xterm.js in a tab.
+- **Unified launcher page** at `http://127.0.0.1:8080` — a single
+  bookmark that scans `$WORKSPACE` for git repos, remembers the ones
+  you've opened (localStorage), live-pings the four backend services,
+  and one-clicks you into the web terminal or Open WebUI. Built as a
+  static page (nginx:alpine) plus a read-only `/api/list/` autoindex
+  endpoint — no backend code.
 - **Agentic coding via OpenCode**, a single static binary. OpenCode talks
   directly to Ollama's `/v1` endpoint (bypassing LiteLLM — see Architecture
   for why) and uses real structured function-calling: the model can
@@ -81,6 +87,7 @@ enough that you actually use it*, and it costs nothing to run.
 | Model server | [Ollama](https://ollama.com) | `ollama/ollama:0.4.7` (container, docker mode) · Homebrew `ollama` (host, metal mode) | Loads the GGUF weights, exposes the Ollama HTTP API on :11434. Metal-aware on host; CPU-only in containers. The container image is pinned for reproducible offline turnup; the host install is whatever `brew install ollama` gives you. |
 | OpenAI shim | [LiteLLM](https://github.com/BerriAI/litellm) | `ghcr.io/berriai/litellm:main-stable` | Exposes OpenAI v1 at :4000 for clients that don't need tool calling (curl, IDE plugins, Open WebUI). OpenCode bypasses this and talks to Ollama's `/v1` directly because of a [LiteLLM bug forwarding `tool_calls`](https://github.com/BerriAI/litellm/issues/19742). |
 | Chat UI | [Open WebUI](https://github.com/open-webui/open-webui) | `ghcr.io/open-webui/open-webui:main` | Browser chat front-end at :3000. Configured as a LiteLLM client (`OPENAI_API_BASE_URLS=http://litellm:4000/v1`) with Ollama auto-integration off, so all traffic flows through the same canonical path. Auth and signup disabled (loopback bind); `OFFLINE_MODE=True` to suppress update checks and embedding-model downloads. |
+| Launcher | nginx + hand-rolled HTML/CSS/JS | `nginx:alpine` | Static landing page at :8080. Scans `$WORKSPACE` via a read-only `/api/list/` autoindex endpoint to detect git repos (depth-2), surfaces them alongside `localStorage`-tracked recents, and live-pings the other four services. No build step, no JS framework — single hand-edited `launcher/site/index.html`. |
 | Web terminal | [ttyd](https://github.com/tsl0922/ttyd) + [fzf](https://github.com/junegunn/fzf) + opencode | `ttyd 1.7.7` · `fzf 0.38` (in `maude-webterm:local`) | Single Go binary serving an xterm.js front-end on :7681. Each connection runs `launcher.sh`: maude banner → fzf directory picker over `$WORKSPACE` (git repos first) → `exec opencode`. Bind-mounts `${WORKSPACE:-$HOME}` and runs as the host UID/GID so file edits land owned by the host user. Theme tokens mirror `webui/maude.css`. |
 | Agent | [OpenCode](https://opencode.ai) | host: `anomalyco/tap/opencode` · container: `opencode-ai` (npm) | Native static binary in host mode (`./maude`); npm-installed Linux build in `maude-webterm` for the browser terminal. Same `opencode.json` schema, same model, same tool calls — only the baseURL differs (`127.0.0.1`, `ollama`, or `host.docker.internal`) depending on where opencode is running. |
 | Orchestration | Docker Compose v2 | n/a | Single `docker-compose.yml`; the `docker-backend` profile gates the in-container Ollama. |
@@ -160,9 +167,12 @@ flowchart LR
     Other([curl / IDE plugin / scripts])
 
     Dev --> OC["OpenCode CLI (host)<br/>./maude — native binary<br/>tools: read/write/edit/bash/grep/…"]
+    Browser --> Launcher["maude-launcher<br/>nginx + static page @ :8080<br/>scans workspace · pings services"]
     Browser --> WebUI["Open WebUI<br/>chat @ :3000"]
     Browser --> WebTerm["maude-webterm<br/>ttyd + opencode @ :7681<br/>xterm.js / per-conn PTY"]
     Other --> LiteLLM["LiteLLM proxy<br/>OpenAI v1 @ :4000"]
+    Launcher -.-> WebUI
+    Launcher -.-> WebTerm
     WebUI --> LiteLLM
 
     OC -- "OpenAI v1 + tool_calls<br/>(direct)" --> Ollama
@@ -179,7 +189,7 @@ flowchart LR
     classDef host fill:#fdf0e6,stroke:#c98140,color:#3a1f08
     classDef container fill:#e8f1fc,stroke:#5a8dc7,color:#0a2540
     class OC host
-    class LiteLLM,WebUI,WebTerm container
+    class LiteLLM,WebUI,WebTerm,Launcher container
 ```
 
 OpenCode talks **directly** to Ollama's OpenAI-compat endpoint
@@ -339,6 +349,36 @@ The `sk-maude-local` key is set in `litellm/config.*.yaml`. The
 proxy is bound to `127.0.0.1` only; the key is defence-in-depth, not a
 secret.
 
+## Launcher
+
+`http://127.0.0.1:8080` is the front door to maude in a browser. It's a
+single static page (nginx serving hand-rolled HTML/CSS/JS — no
+framework, no build step) that:
+
+- **Lists git repos** in `$WORKSPACE` automatically. The page hits
+  `/api/list/<path>/` — a read-only `autoindex_format json` endpoint
+  nginx serves out of the bind-mounted workspace — and walks depth-2
+  looking for `.git` directories. So as soon as `./turnup.sh` is done,
+  the launcher shows you every git project under your home dir without
+  you having to type a path.
+- **Remembers recent picks** in `localStorage`. The most recently opened
+  projects float to the top with a `recent` badge; the rest carry a
+  `git` badge.
+- **One-clicks into the web terminal.** Clicking a project opens
+  `http://127.0.0.1:7681/?arg=<path>` in a new tab — skipping the fzf
+  picker because you already chose.
+- **Live service status.** Pings ollama/litellm/open-webui/web-terminal
+  every 10 s and shows green/red dots. Uses `no-cors` `fetch` to dodge
+  the absence of CORS headers on the backends.
+- **Path input + escape hatches.** Type any path under `$WORKSPACE` to
+  open it; "Open with fzf picker" jumps to the bare web terminal;
+  "Rescan workspace" forces a fresh autoindex walk; "Clear recents"
+  wipes the localStorage.
+
+It's local-only by design: bound to 127.0.0.1, no auth, no telemetry.
+The autoindex mount is `:ro` so the page literally cannot mutate
+anything outside its own state.
+
 ## Web terminal (xterm.js)
 
 `http://127.0.0.1:7681` opens a browser-side terminal connected to a
@@ -441,7 +481,11 @@ out of code so you can edit freely without rebuilding the image.
 
 ```
 .
-├── docker-compose.yml          # ollama (profile: docker-backend) + litellm + open-webui + webterm
+├── docker-compose.yml          # ollama (profile: docker-backend) + litellm + open-webui + webterm + launcher
+├── launcher/                   # unified launcher page @ :8080
+│   ├── nginx.conf              # serves site/, exposes /api/list/ (read-only autoindex of $WORKSPACE)
+│   └── site/
+│       └── index.html          # the page itself — single file, inline CSS/JS
 ├── litellm/
 │   ├── config.docker.yaml      # api_base http://ollama:11434
 │   └── config.metal.yaml       # api_base http://host.docker.internal:11434
@@ -523,20 +567,21 @@ make sure it's not bound to loopback only.
 
 | Language | Files | Lines | Blanks | Comments | Code | Complexity |
 |---|---|---|---|---|---|---|
-| Shell | 4 | 455 | 55 | 98 | 302 | 64 |
+| Shell | 4 | 462 | 56 | 99 | 307 | 64 |
 | BASH | 3 | 45 | 7 | 18 | 20 | 5 |
 | JSON | 3 | 69 | 0 | 0 | 69 | 0 |
-| YAML | 3 | 166 | 11 | 41 | 114 | 0 |
-| Markdown | 2 | 548 | 112 | 0 | 436 | 0 |
+| YAML | 3 | 187 | 12 | 45 | 130 | 0 |
+| Markdown | 2 | 592 | 116 | 0 | 476 | 0 |
 | CSS | 1 | 207 | 18 | 37 | 152 | 0 |
 | Dockerfile | 1 | 55 | 9 | 17 | 29 | 9 |
+| HTML | 1 | 531 | 38 | 0 | 493 | 0 |
 | Python | 1 | 0 | 0 | 0 | 0 | 0 |
-| **Total** | **18** | **1,545** | **212** | **211** | **1,122** | **78** |
+| **Total** | **19** | **2,148** | **256** | **216** | **1,676** | **78** |
 
-- **Estimated Cost to Develop (organic):** $30,485
-- **Estimated Schedule Effort (organic):** 3.65 months
-- **Estimated People Required (organic):** 0.74
-- **Processed:** 63,678 bytes (0.064 megabytes)
+- **Estimated Cost to Develop (organic):** $46,460
+- **Estimated Schedule Effort (organic):** 4.28 months
+- **Estimated People Required (organic):** 0.96
+- **Processed:** 84,357 bytes (0.084 megabytes)
 
 *Generated with [scc](https://github.com/boyter/scc) on 2026-05-23*
 <!-- scc-end -->

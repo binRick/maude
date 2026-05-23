@@ -79,7 +79,7 @@ if [[ "$MODE" == "docker" ]]; then
     warn "or 'docker compose exec ollama ollama pull qwen2.5-coder:14b' after start."
   fi
   COMPOSE_PROFILES=docker-backend
-  EXPECTED_CONTAINERS=(maude-ollama maude-litellm maude-open-webui maude-webterm)
+  EXPECTED_CONTAINERS=(maude-ollama maude-litellm maude-open-webui maude-webterm maude-launcher)
 else
   # metal mode
   command -v ollama >/dev/null || { warn "Native ollama not installed. Run: brew install ollama"; exit 1; }
@@ -132,7 +132,7 @@ else
   say "Host ollama has qwen2.5-coder:14b."
 
   COMPOSE_PROFILES=""
-  EXPECTED_CONTAINERS=(maude-litellm maude-open-webui maude-webterm)
+  EXPECTED_CONTAINERS=(maude-litellm maude-open-webui maude-webterm maude-launcher)
 fi
 
 # --- 3. Start the stack ------------------------------------------------------
@@ -165,9 +165,10 @@ if ! (( all_healthy )); then
   exit 1
 fi
 
-say "Stack is up:  http://127.0.0.1:4000 (litellm — OpenAI-compatible API)"
+say "Stack is up:  http://127.0.0.1:8080 (launcher — unified entry, workspace=$WORKSPACE)"
+say "             http://127.0.0.1:4000 (litellm — OpenAI-compatible API)"
 say "             http://127.0.0.1:3000 (open-webui — chat UI via litellm)"
-say "             http://127.0.0.1:7681 (webterm — opencode in xterm.js, workspace=$WORKSPACE)"
+say "             http://127.0.0.1:7681 (webterm — opencode in xterm.js)"
 [[ "$MODE" == "docker" ]] && say "             http://127.0.0.1:11434 (ollama, in container)"
 [[ "$MODE" == "metal"  ]] && say "             http://127.0.0.1:11434 (ollama, host-native, Metal)"
 echo
