@@ -101,6 +101,9 @@ build_entries() {
   while IFS= read -r d; do
     [[ -z "$d" ]] && continue
     name=$(basename "$d")
+    # Hide dotfile directories — they're config caches and OS noise nobody
+    # wants to navigate through in a project picker.
+    [[ "$name" == .* ]] && continue
     [[ "$name" =~ $SKIP_REGEX ]] && continue
     if [[ -d "$d/.git" ]]; then
       printf '● %s\n' "$name" >> "$out"
