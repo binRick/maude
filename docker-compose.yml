@@ -51,3 +51,40 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
+
+  # Open WebUI — chat front-end. Talks to LiteLLM as a plain OpenAI provider,
+  # so it gets exactly what every other client sees (model name `qwen-coder`).
+  # We deliberately do NOT enable its built-in Ollama integration: routing
+  # through LiteLLM keeps a single canonical request path and matches what
+  # external clients use.
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: maude-open-webui
+    restart: unless-stopped
+    depends_on:
+      litellm:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:8080"
+    volumes:
+      - ./webui-data:/app/backend/data
+    environment:
+      # Treat LiteLLM as the sole OpenAI-compatible upstream.
+      OPENAI_API_BASE_URLS: "http://litellm:4000/v1"
+      OPENAI_API_KEYS: "sk-maude-local"
+      ENABLE_OLLAMA_API: "False"
+      # Local-only deployment on 127.0.0.1 — no need for the login wall.
+      # Flip to True (and ENABLE_SIGNUP) if you ever expose this beyond loopback.
+      WEBUI_AUTH: "False"
+      ENABLE_SIGNUP: "False"
+      WEBUI_NAME: "maude"
+      # Offline hygiene: matches the rest of the stack (no telemetry, no
+      # update pings, no auto-download of embedding models post-install).
+      OFFLINE_MODE: "True"
+      DO_NOT_TRACK: "1"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 60s

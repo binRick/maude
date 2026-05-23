@@ -72,7 +72,7 @@ if [[ "$MODE" == "docker" ]]; then
     warn "or 'docker compose exec ollama ollama pull qwen2.5-coder:14b' after start."
   fi
   COMPOSE_PROFILES=docker-backend
-  EXPECTED_CONTAINERS=(maude-ollama maude-litellm)
+  EXPECTED_CONTAINERS=(maude-ollama maude-litellm maude-open-webui)
 else
   # metal mode
   command -v ollama >/dev/null || { warn "Native ollama not installed. Run: brew install ollama"; exit 1; }
@@ -125,7 +125,7 @@ else
   say "Host ollama has qwen2.5-coder:14b."
 
   COMPOSE_PROFILES=""
-  EXPECTED_CONTAINERS=(maude-litellm)
+  EXPECTED_CONTAINERS=(maude-litellm maude-open-webui)
 fi
 
 # --- 3. Start the stack ------------------------------------------------------
@@ -133,7 +133,9 @@ say "Starting compose stack ($MODE mode)..."
 COMPOSE_PROFILES="$COMPOSE_PROFILES" docker compose up -d
 
 say "Waiting for services to report healthy..."
-for _ in $(seq 1 60); do
+# 120 iterations × 2s = 240s. Open WebUI's first start is the slow link
+# (frontend init); the other services typically settle inside 30s.
+for _ in $(seq 1 120); do
   all_healthy=1
   for c in "${EXPECTED_CONTAINERS[@]}"; do
     h=$(docker inspect -f '{{.State.Health.Status}}' "$c" 2>/dev/null || echo missing)
@@ -156,7 +158,8 @@ if ! (( all_healthy )); then
   exit 1
 fi
 
-say "Stack is up:  http://127.0.0.1:4000 (litellm)"
+say "Stack is up:  http://127.0.0.1:4000 (litellm — OpenAI-compatible API)"
+say "             http://127.0.0.1:3000 (open-webui — chat UI via litellm)"
 [[ "$MODE" == "docker" ]] && say "             http://127.0.0.1:11434 (ollama, in container)"
 [[ "$MODE" == "metal"  ]] && say "             http://127.0.0.1:11434 (ollama, host-native, Metal)"
 echo

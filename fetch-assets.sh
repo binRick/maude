@@ -10,6 +10,7 @@
 #     images/
 #       ollama.tar       (docker save, ~2.3 GB)
 #       litellm.tar      (docker save, ~373 MB)
+#       open-webui.tar   (docker save, ~1.5 GB)
 #     ollama-data/
 #       models/...       (pre-pulled Ollama blobs, ~19 GB for qwen3-coder:30b)
 #
@@ -17,9 +18,10 @@
 # anomalyco/tap/opencode); it isn't bundled here. See the README.
 #
 # Sources:
-#   - ollama/ollama:0.4.7                  Docker Hub
-#   - ghcr.io/berriai/litellm:main-stable  GitHub Container Registry
-#   - qwen2.5-coder:14b                    registry.ollama.ai
+#   - ollama/ollama:0.4.7                       Docker Hub
+#   - ghcr.io/berriai/litellm:main-stable       GitHub Container Registry
+#   - ghcr.io/open-webui/open-webui:main        GitHub Container Registry
+#   - qwen3-coder:30b                           registry.ollama.ai
 #
 # Re-runnable: skips images and model pulls that are already present.
 
@@ -33,6 +35,7 @@ BASE_MODEL="qwen3-coder:${MODEL_SIZE}"
 
 OLLAMA_IMAGE="ollama/ollama:0.4.7"
 LITELLM_IMAGE="ghcr.io/berriai/litellm:main-stable"
+WEBUI_IMAGE="ghcr.io/open-webui/open-webui:main"
 
 say()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[!]\033[0m %s\n' "$*"; }
@@ -62,6 +65,10 @@ save_image "$OLLAMA_IMAGE" assets/images/ollama.tar
 say "Pulling $LITELLM_IMAGE"
 docker pull "$LITELLM_IMAGE"
 save_image "$LITELLM_IMAGE" assets/images/litellm.tar
+
+say "Pulling $WEBUI_IMAGE"
+docker pull "$WEBUI_IMAGE"
+save_image "$WEBUI_IMAGE" assets/images/open-webui.tar
 
 # --- 2. Pre-populate the Ollama model store ----------------------------------
 # Run a throwaway ollama container against ./assets/ollama-data so the pulled

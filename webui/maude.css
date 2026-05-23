@@ -1,0 +1,207 @@
+/* ============================================================================
+ * maude — Open WebUI theme
+ *
+ * Paste this whole file into Open WebUI → Settings → Interface → Custom CSS.
+ * Saved into webui-data/webui.db, so it persists across container restarts
+ * without rebuilding the image.
+ *
+ * Intent:
+ *   - Distinct, recognisably "maude" — no chance you confuse this with a
+ *     stock Open WebUI tab in your tab bar.
+ *   - Terminal aesthetic: mono type, dark base, single amber accent.
+ *   - Amber accent matches the "host-mode" node colour in the architecture
+ *     diagram (#fdf0e6 / #c98140 / #3a1f08) — visual continuity with the
+ *     README.
+ *
+ * Selectors are intentionally broad + !important. Open WebUI ships heavy
+ * Tailwind utility classes; overriding without specificity loses every time.
+ * ========================================================================== */
+
+:root {
+  --maude-bg:           #0e0a06;
+  --maude-bg-elev:      #18120b;
+  --maude-bg-input:     #1f1810;
+  --maude-fg:           #f4e9d8;
+  --maude-fg-dim:       #b9a890;
+  --maude-fg-mute:      #7b6a55;
+  --maude-accent:       #c98140;   /* mermaid host stroke */
+  --maude-accent-soft:  #fdf0e6;   /* mermaid host fill   */
+  --maude-accent-deep:  #3a1f08;   /* mermaid host text   */
+  --maude-rule:         #2a1f15;
+  --maude-mono:         ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code",
+                        Menlo, Consolas, monospace;
+}
+
+/* ---- Override Open WebUI's design tokens where they exist ---------------- */
+html, html.dark, :root {
+  --color-primary:        var(--maude-accent)      !important;
+  --color-primary-500:    var(--maude-accent)      !important;
+  --color-primary-600:    #b06e30                  !important;
+  --color-accent:         var(--maude-accent)      !important;
+  --color-bg:             var(--maude-bg)          !important;
+  --color-bg-50:          var(--maude-bg-elev)     !important;
+  --color-bg-100:         var(--maude-bg-elev)     !important;
+  --color-surface:        var(--maude-bg-elev)     !important;
+  --color-foreground:     var(--maude-fg)          !important;
+  color-scheme: dark;
+}
+
+/* ---- Base canvas --------------------------------------------------------- */
+html, body, #app, main, .h-screen, .min-h-screen {
+  background: var(--maude-bg) !important;
+  color: var(--maude-fg) !important;
+}
+
+body, button, input, textarea, select {
+  font-family: var(--maude-mono) !important;
+  font-feature-settings: "calt", "liga" !important;
+}
+
+/* Slightly looser tracking on display copy — mono can read dense. */
+h1, h2, h3, h4 {
+  letter-spacing: 0.01em !important;
+  color: var(--maude-accent-soft) !important;
+}
+
+/* ---- Sidebar / nav ------------------------------------------------------- */
+aside,
+nav,
+[class*="sidebar" i],
+[data-sidebar] {
+  background: var(--maude-bg-elev) !important;
+  border-right: 1px solid var(--maude-rule) !important;
+}
+
+/* The "maude" wordmark — pinned top-left, replaces brand area visually.
+ * Position fixed so it sits over whatever Open WebUI puts in that corner,
+ * without us having to chase a specific class name across versions. */
+body::before {
+  content: "maude" !important;
+  position: fixed !important;
+  top: 14px !important;
+  left: 18px !important;
+  z-index: 10000 !important;
+  font-family: var(--maude-mono) !important;
+  font-weight: 700 !important;
+  font-size: 18px !important;
+  letter-spacing: 0.04em !important;
+  color: var(--maude-accent) !important;
+  pointer-events: none !important;
+  text-shadow: 0 0 12px rgba(201, 129, 64, 0.25) !important;
+}
+
+body::after {
+  content: "offline · local · no cloud" !important;
+  position: fixed !important;
+  bottom: 10px !important;
+  left: 14px !important;
+  z-index: 10000 !important;
+  font-family: var(--maude-mono) !important;
+  font-size: 10.5px !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--maude-fg-mute) !important;
+  pointer-events: none !important;
+}
+
+/* ---- Inputs -------------------------------------------------------------- */
+input, textarea, select,
+[contenteditable="true"] {
+  background: var(--maude-bg-input) !important;
+  color: var(--maude-fg) !important;
+  border: 1px solid var(--maude-rule) !important;
+  border-radius: 6px !important;
+  caret-color: var(--maude-accent) !important;
+}
+
+input:focus, textarea:focus, select:focus,
+[contenteditable="true"]:focus {
+  outline: none !important;
+  border-color: var(--maude-accent) !important;
+  box-shadow: 0 0 0 1px var(--maude-accent) !important;
+}
+
+::placeholder {
+  color: var(--maude-fg-mute) !important;
+  opacity: 1 !important;
+  font-style: italic;
+}
+
+/* ---- Buttons ------------------------------------------------------------- */
+button {
+  border-radius: 6px !important;
+  transition: background 80ms ease, color 80ms ease, border-color 80ms ease !important;
+}
+
+/* The "Send" / primary action button — Open WebUI variously uses
+ * `.bg-primary`, dynamic Tailwind, or inline-coloured circles. Net it
+ * with several patterns. */
+button.bg-primary,
+button[class*="primary"],
+button[class*="bg-emerald"],
+button[class*="bg-blue"],
+button[class*="bg-indigo"],
+button[type="submit"] {
+  background: var(--maude-accent) !important;
+  color: var(--maude-accent-deep) !important;
+  border: 1px solid var(--maude-accent) !important;
+}
+button.bg-primary:hover,
+button[class*="primary"]:hover,
+button[type="submit"]:hover {
+  background: var(--maude-accent-soft) !important;
+  color: var(--maude-accent-deep) !important;
+  border-color: var(--maude-accent-soft) !important;
+}
+
+/* ---- Chat bubbles -------------------------------------------------------- */
+/* Open WebUI alternates user vs assistant by container class. We don't try
+ * to be surgical — instead, give every "card-shaped" message a consistent
+ * mono look on the dark canvas. */
+.markdown-prose, .prose, [class*="message"] {
+  color: var(--maude-fg) !important;
+}
+.prose code, .markdown-prose code, code, pre {
+  background: var(--maude-bg-input) !important;
+  color: var(--maude-accent-soft) !important;
+  border: 1px solid var(--maude-rule) !important;
+  border-radius: 4px !important;
+  padding: 0 4px !important;
+}
+.prose pre, .markdown-prose pre, pre {
+  padding: 12px 14px !important;
+}
+
+/* Inline links — amber, no underline jitter. */
+a, a:visited {
+  color: var(--maude-accent) !important;
+  text-decoration: none !important;
+  border-bottom: 1px dotted rgba(201, 129, 64, 0.4) !important;
+}
+a:hover {
+  color: var(--maude-accent-soft) !important;
+  border-bottom-color: var(--maude-accent-soft) !important;
+}
+
+/* ---- Scrollbars ---------------------------------------------------------- */
+* {
+  scrollbar-color: var(--maude-accent) var(--maude-bg-elev) !important;
+  scrollbar-width: thin !important;
+}
+*::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
+*::-webkit-scrollbar-track { background: var(--maude-bg-elev) !important; }
+*::-webkit-scrollbar-thumb {
+  background: var(--maude-rule) !important;
+  border-radius: 4px !important;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--maude-accent) !important; }
+
+/* ---- Dividers, rules, focus rings --------------------------------------- */
+hr, [role="separator"] {
+  border-color: var(--maude-rule) !important;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--maude-accent) !important;
+  outline-offset: 1px !important;
+}

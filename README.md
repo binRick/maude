@@ -40,8 +40,13 @@ enough that you actually use it*, and it costs nothing to run.
     acceleration. Roughly 5–10× faster generation on Apple Silicon and
     keeps the CPU idle. Only LiteLLM lives in compose.
 - **OpenAI-compatible endpoint** at `http://127.0.0.1:4000` via LiteLLM,
-  so non-agent clients (curl, OpenWebUI, IDE plugins, custom scripts) work
-  against the local model without code changes.
+  so non-agent clients (curl, IDE plugins, custom scripts) work against
+  the local model without code changes.
+- **Built-in chat UI** at `http://127.0.0.1:3000` via Open WebUI, wired
+  directly into LiteLLM as a plain OpenAI provider. Same model, same key,
+  no separate config — useful for prompt exploration and quick chats
+  alongside agentic editing. Branded `maude`, auth disabled (loopback-only
+  bind), offline mode on.
 - **Agentic coding via OpenCode**, a single static binary. OpenCode talks
   directly to Ollama's `/v1` endpoint (bypassing LiteLLM — see Architecture
   for why) and uses real structured function-calling: the model can
@@ -50,9 +55,12 @@ enough that you actually use it*, and it costs nothing to run.
   machine produces a self-contained `./assets/` tree (saved Docker images
   + Ollama model blobs); `./turnup.sh` on the offline machine then never
   touches the network. Idempotent — re-runnable, skips work already done.
-- **Pinned versions** end to end — Ollama 0.4.7, LiteLLM main-stable,
-  OpenCode (`anomalyco/tap`), Qwen 3 Coder 30B-A3B (MoE). Mode swaps don't
-  change the model behaviour.
+- **Pinned versions** end to end — `ollama/ollama:0.4.7` (container image,
+  docker mode), LiteLLM main-stable, OpenCode (`anomalyco/tap`), Qwen 3
+  Coder 30B-A3B (MoE). Host-side Ollama in metal mode tracks whatever
+  Homebrew ships (currently ~0.20.x), since it's a separate install path;
+  the model itself is pinned the same way either way, so behaviour doesn't
+  shift with the host version.
 - **Local-only by design.** Both LiteLLM and Ollama bind to `127.0.0.1`.
   No telemetry, no outbound calls after fetch-assets completes.
 - **Healthchecked.** Containers expose proper Docker healthchecks; turnup
@@ -65,8 +73,9 @@ enough that you actually use it*, and it costs nothing to run.
 | Layer | Component | Pinned version | Role |
 |---|---|---|---|
 | Model | [Qwen 3 Coder 30B-A3B](https://ollama.com/library/qwen3-coder) | `qwen3-coder:30b` | MoE coder model — 30 B total / 3.3 B active per token. ~19 GB on disk, 256 k native context, designed for function-calling and agentic tool use. |
-| Model server | [Ollama](https://ollama.com) | `ollama/ollama:0.4.7` | Loads the GGUF weights, exposes the Ollama HTTP API on :11434. Metal-aware on host; CPU-only in containers. |
-| OpenAI shim | [LiteLLM](https://github.com/BerriAI/litellm) | `ghcr.io/berriai/litellm:main-stable` | Exposes OpenAI v1 at :4000 for clients that don't need tool calling (curl, IDE plugins, OpenWebUI). OpenCode bypasses this and talks to Ollama's `/v1` directly because of a [LiteLLM bug forwarding `tool_calls`](https://github.com/BerriAI/litellm/issues/19742). |
+| Model server | [Ollama](https://ollama.com) | `ollama/ollama:0.4.7` (container, docker mode) · Homebrew `ollama` (host, metal mode) | Loads the GGUF weights, exposes the Ollama HTTP API on :11434. Metal-aware on host; CPU-only in containers. The container image is pinned for reproducible offline turnup; the host install is whatever `brew install ollama` gives you. |
+| OpenAI shim | [LiteLLM](https://github.com/BerriAI/litellm) | `ghcr.io/berriai/litellm:main-stable` | Exposes OpenAI v1 at :4000 for clients that don't need tool calling (curl, IDE plugins, Open WebUI). OpenCode bypasses this and talks to Ollama's `/v1` directly because of a [LiteLLM bug forwarding `tool_calls`](https://github.com/BerriAI/litellm/issues/19742). |
+| Chat UI | [Open WebUI](https://github.com/open-webui/open-webui) | `ghcr.io/open-webui/open-webui:main` | Browser chat front-end at :3000. Configured as a LiteLLM client (`OPENAI_API_BASE_URLS=http://litellm:4000/v1`) with Ollama auto-integration off, so all traffic flows through the same canonical path. Auth and signup disabled (loopback bind); `OFFLINE_MODE=True` to suppress update checks and embedding-model downloads. |
 | Agent | [OpenCode](https://opencode.ai) | `anomalyco/tap/opencode` | Native static binary. Reads `opencode.json` from the repo, talks Ollama's OpenAI-compat endpoint directly, edits files with structured tool calls. No container, no UID juggling. |
 | Orchestration | Docker Compose v2 | n/a | Single `docker-compose.yml`; the `docker-backend` profile gates the in-container Ollama. |
 | Glue | Bash scripts | — | `fetch-assets.sh`, `turnup.sh`, `maude`, `maude-cpu`, `maude-gpu`. Tested with `set -euo pipefail`. |
@@ -141,10 +150,13 @@ right tool for the size of the task.
 ```mermaid
 flowchart LR
     Dev([Developer])
-    Other([curl / IDE plugin / OpenWebUI])
+    Browser([Browser])
+    Other([curl / IDE plugin / scripts])
 
     Dev --> OC["OpenCode CLI<br/>native binary<br/>tools: read/write/edit/bash/grep/…"]
+    Browser --> WebUI["Open WebUI<br/>chat front-end @ :3000"]
     Other --> LiteLLM["LiteLLM proxy<br/>OpenAI v1 @ :4000"]
+    WebUI --> LiteLLM
 
     OC -- "OpenAI v1 + tool_calls<br/>(direct)" --> Ollama
     LiteLLM -- "Ollama API" --> Ollama
@@ -159,7 +171,7 @@ flowchart LR
     classDef host fill:#fdf0e6,stroke:#c98140,color:#3a1f08
     classDef container fill:#e8f1fc,stroke:#5a8dc7,color:#0a2540
     class OC host
-    class LiteLLM container
+    class LiteLLM,WebUI container
 ```
 
 OpenCode talks **directly** to Ollama's OpenAI-compat endpoint
@@ -253,15 +265,19 @@ container, no UID juggling. Add the launcher to your `PATH` and just type
 # docker mode — ollama lives in compose, include the profile when stopping
 COMPOSE_PROFILES=docker-backend docker compose down
 
-# metal mode — only litellm is in compose; host ollama keeps running
+# metal mode — litellm + open-webui in compose; host ollama keeps running
 docker compose down
 brew services stop ollama   # if you also want to stop host ollama
 ```
 
+`./webui-data/` and `./assets/` survive `compose down`. Delete them
+explicitly to wipe chat history or reclaim the model bundle.
+
 ## Usage examples
 
 All screenshots below are real terminal output captured against this stack
-running locally — Ollama 0.4.7, LiteLLM main-stable, Qwen 3 Coder 30B-A3B —
+running locally — Ollama (`0.4.7` in docker mode, Homebrew host build in
+metal mode), LiteLLM main-stable, Qwen 3 Coder 30B-A3B —
 rendered with [`charmbracelet/freeze`](https://github.com/charmbracelet/freeze).
 
 ### Stack overview — `docker ps`
@@ -313,21 +329,49 @@ The `sk-maude-local` key is set in `litellm/config.*.yaml`. The
 proxy is bound to `127.0.0.1` only; the key is defence-in-depth, not a
 secret.
 
+## Chat UI (Open WebUI)
+
+After `./turnup.sh`, open <http://127.0.0.1:3000>. The UI is pre-wired to
+LiteLLM — `qwen-coder` appears in the model picker with no further
+configuration. Auth is disabled (loopback-only bind), so it drops you
+straight into a chat.
+
+State (chat history, settings) persists in `./webui-data/`, mounted into
+the container.
+
+### Apply the maude theme
+
+Open WebUI takes a one-shot Custom CSS payload via the admin UI; the
+project ships the maude-branded payload at [`webui/maude.css`](webui/maude.css).
+Paste it in once and it persists in the SQLite at `webui-data/webui.db`:
+
+1. Open <http://127.0.0.1:3000> → **Settings** (top-right) → **Interface**.
+2. Scroll to **Custom CSS**, paste the contents of `webui/maude.css`, save.
+3. Reload. The header shows `maude`, the accent colour shifts to the
+   amber/host-mode tone from the architecture diagram, and the typography
+   moves to a mono stack.
+
+To reset, clear the textarea and save again — the data volume keeps it
+out of code so you can edit freely without rebuilding the image.
+
 ## Layout
 
 ```
 .
-├── docker-compose.yml          # ollama (profile: docker-backend) + litellm
+├── docker-compose.yml          # ollama (profile: docker-backend) + litellm + open-webui
 ├── litellm/
 │   ├── config.docker.yaml      # api_base http://ollama:11434
 │   └── config.metal.yaml       # api_base http://host.docker.internal:11434
-├── opencode.json               # OpenCode provider/model definition (LiteLLM)
+├── opencode.json               # OpenCode provider/model definition (direct Ollama)
+├── webui/
+│   └── maude.css               # maude-branded Custom CSS for Open WebUI (paste once)
 ├── fetch-assets.sh             # online: pull & save images, prefetch model blobs
 ├── turnup.sh                   # offline: docker load + compose up (MODE-aware)
 ├── maude                       # launcher: exec opencode with OPENCODE_CONFIG
 ├── maude-cpu                   # wrapper: MODE=docker maude …
 ├── maude-gpu                   # wrapper: MODE=metal  maude …
 ├── .gitattributes              # LFS patterns (not active unless you enable LFS)
+├── webui-data/                 # (gitignored) Open WebUI SQLite, uploads, settings
 └── assets/                     # (gitignored by default)
     ├── images/*.tar
     └── ollama-data/
@@ -391,17 +435,18 @@ make sure it's not bound to loopback only.
 | Language | Files | Lines | Blanks | Comments | Code | Complexity |
 |---|---|---|---|---|---|---|
 | BASH | 3 | 45 | 7 | 18 | 20 | 5 |
-| YAML | 3 | 92 | 9 | 25 | 58 | 0 |
-| Markdown | 2 | 408 | 85 | 0 | 323 | 0 |
-| Shell | 2 | 276 | 34 | 55 | 187 | 57 |
+| YAML | 3 | 129 | 10 | 35 | 84 | 0 |
+| Markdown | 2 | 457 | 94 | 0 | 363 | 0 |
+| Shell | 2 | 286 | 35 | 59 | 192 | 57 |
+| CSS | 1 | 207 | 18 | 37 | 152 | 0 |
 | JSON | 1 | 23 | 0 | 0 | 23 | 0 |
 | Python | 1 | 0 | 0 | 0 | 0 | 0 |
-| **Total** | **12** | **844** | **135** | **98** | **611** | **62** |
+| **Total** | **13** | **1,147** | **164** | **149** | **834** | **62** |
 
-- **Estimated Cost to Develop (organic):** $16,104
-- **Estimated Schedule Effort (organic):** 2.86 months
-- **Estimated People Required (organic):** 0.50
-- **Processed:** 34,616 bytes (0.035 megabytes)
+- **Estimated Cost to Develop (organic):** $22,326
+- **Estimated Schedule Effort (organic):** 3.24 months
+- **Estimated People Required (organic):** 0.61
+- **Processed:** 47,053 bytes (0.047 megabytes)
 
-*Generated with [scc](https://github.com/boyter/scc) on 2026-05-22*
+*Generated with [scc](https://github.com/boyter/scc) on 2026-05-23*
 <!-- scc-end -->

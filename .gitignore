@@ -7,6 +7,9 @@ assets/
 # Local docker compose overrides.
 docker-compose.override.yml
 
+# Open WebUI persistent state (sqlite, uploads, embedding cache).
+webui-data/
+
 # Aider's own state files + pip cache (written into /workspace because the
 # launcher sets HOME=/workspace inside the aider container).
 .aider*
