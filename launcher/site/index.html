@@ -369,6 +369,43 @@
       background: var(--bg);
     }
     .frame.active { display: block; }
+
+    /* Chat-mode context strip — explains what we pre-filled in the input. */
+    .context-strip {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      z-index: 2;
+      background: linear-gradient(180deg, rgba(14, 10, 6, 0.92), rgba(14, 10, 6, 0.0));
+      padding: 8px 16px 14px;
+      pointer-events: none;
+      display: none;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      color: var(--fg-mute);
+    }
+    .context-strip.visible { display: block; }
+    .context-strip .pill {
+      display: inline-block;
+      background: var(--bg-elev);
+      border: 1px solid var(--accent);
+      color: var(--accent-soft);
+      padding: 4px 10px;
+      border-radius: 4px;
+      pointer-events: auto;
+      font-weight: 500;
+    }
+    .context-strip .pill .label {
+      color: var(--accent);
+      margin-right: 6px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-size: 9.5px;
+    }
+    .context-strip .hint {
+      margin-left: 10px;
+      color: var(--fg-mute);
+      font-style: italic;
+    }
   </style>
 </head>
 <body>
@@ -441,6 +478,10 @@
     </nav>
 
     <div class="iframes">
+      <div class="context-strip" id="context-strip">
+        <span class="pill"><span class="label">context</span><span id="context-path">—</span></span>
+        <span class="hint">pre-filled in the chat input · press Enter to send</span>
+      </div>
       <iframe class="frame" id="frame-tui"  data-frame="tui"  title="opencode TUI"></iframe>
       <iframe class="frame" id="frame-chat" data-frame="chat" title="Open WebUI"></iframe>
     </div>
@@ -528,6 +569,25 @@
       }
     }
 
+    // Build the chat URL. Open WebUI accepts ?q=<text> to pre-fill the
+    // composer; with a project set, we pre-fill a one-line context that
+    // tells the model what dir we're working in. The user presses Enter to
+    // send it as the first message — Open WebUI doesn't expose a true
+    // system-prompt URL parameter, so this is the cleanest cross-version
+    // hook we can rely on.
+    function buildChatUrl(project) {
+      if (!project) return WEBUI_URL;
+      const ctx = `I'm working in ~/${project} for this session. ` +
+                  `Treat references to "this repo" / "the codebase" as files under that path. ` +
+                  `(You don't have file-system tools here — switch to the opencode TUI tab if you need to read or edit files.)`;
+      // temporary=true so each project-switch starts a clean throwaway chat
+      // instead of polluting Open WebUI's history with one-off contexts.
+      const u = new URL(WEBUI_URL);
+      u.searchParams.set('q', ctx);
+      u.searchParams.set('temporary', 'true');
+      return u.toString();
+    }
+
     function renderTabView() {
       // Project path / breadcrumb
       const pathEl = document.getElementById('project-path');
@@ -542,24 +602,36 @@
         t.classList.toggle('active', t.dataset.tab === currentTab);
       });
 
-      // Iframes — load lazily; reload tui when project changes; chat once.
+      // Iframes — load lazily; reload tui *and* chat when the project
+      // changes (chat reloads so the ?q= context gets re-injected).
       const tui  = document.getElementById('frame-tui');
       const chat = document.getElementById('frame-chat');
 
-      const wantTuiSrc = currentProject
+      const wantTuiSrc  = currentProject
         ? `${WEBTERM_URL}?arg=${encodeURIComponent(currentProject)}`
         : WEBTERM_URL;
+      const wantChatSrc = buildChatUrl(currentProject);
 
       if (tui.dataset.loadedFor !== currentProject) {
         tui.src = wantTuiSrc;
         tui.dataset.loadedFor = currentProject;
       }
-      if (!chat.src) {
-        chat.src = WEBUI_URL;
+      if (chat.dataset.loadedFor !== currentProject) {
+        chat.src = wantChatSrc;
+        chat.dataset.loadedFor = currentProject;
       }
 
       tui.classList.toggle('active', currentTab === 'tui');
       chat.classList.toggle('active', currentTab === 'chat');
+
+      // Context strip is visible only when the chat tab is active and a
+      // project is selected (otherwise there's no context to advertise).
+      const strip = document.getElementById('context-strip');
+      const showStrip = currentTab === 'chat' && !!currentProject;
+      strip.classList.toggle('visible', showStrip);
+      if (showStrip) {
+        document.getElementById('context-path').textContent = '~/' + currentProject;
+      }
     }
 
     function openProject(path) {
