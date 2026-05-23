@@ -19,8 +19,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     NODE_MAJOR=20
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl git bash unzip jq tini procps \
-      gnupg \
+      ca-certificates curl git bash unzip jq tini procps gnupg \
+      fzf coreutils \
     && curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
@@ -47,7 +47,8 @@ RUN npm install -g opencode-ai \
 RUN install -d -m 0777 /workspace /etc/maude
 
 COPY start.sh /usr/local/bin/start.sh
-RUN chmod 0755 /usr/local/bin/start.sh
+COPY launcher.sh /usr/local/bin/launcher.sh
+RUN chmod 0755 /usr/local/bin/start.sh /usr/local/bin/launcher.sh
 
 EXPOSE 7681
 ENTRYPOINT ["/usr/bin/tini", "--"]

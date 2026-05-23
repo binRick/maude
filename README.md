@@ -81,7 +81,7 @@ enough that you actually use it*, and it costs nothing to run.
 | Model server | [Ollama](https://ollama.com) | `ollama/ollama:0.4.7` (container, docker mode) · Homebrew `ollama` (host, metal mode) | Loads the GGUF weights, exposes the Ollama HTTP API on :11434. Metal-aware on host; CPU-only in containers. The container image is pinned for reproducible offline turnup; the host install is whatever `brew install ollama` gives you. |
 | OpenAI shim | [LiteLLM](https://github.com/BerriAI/litellm) | `ghcr.io/berriai/litellm:main-stable` | Exposes OpenAI v1 at :4000 for clients that don't need tool calling (curl, IDE plugins, Open WebUI). OpenCode bypasses this and talks to Ollama's `/v1` directly because of a [LiteLLM bug forwarding `tool_calls`](https://github.com/BerriAI/litellm/issues/19742). |
 | Chat UI | [Open WebUI](https://github.com/open-webui/open-webui) | `ghcr.io/open-webui/open-webui:main` | Browser chat front-end at :3000. Configured as a LiteLLM client (`OPENAI_API_BASE_URLS=http://litellm:4000/v1`) with Ollama auto-integration off, so all traffic flows through the same canonical path. Auth and signup disabled (loopback bind); `OFFLINE_MODE=True` to suppress update checks and embedding-model downloads. |
-| Web terminal | [ttyd](https://github.com/tsl0922/ttyd) + opencode | `ttyd 1.7.7` (in `maude-webterm:local`) | Single Go binary serving an xterm.js front-end on :7681. Runs as a per-connection PTY against `opencode`. Bind-mounts `${WORKSPACE:-$HOME}` and runs as the host UID/GID so file edits land owned by the host user. Theme tokens mirror `webui/maude.css`. |
+| Web terminal | [ttyd](https://github.com/tsl0922/ttyd) + [fzf](https://github.com/junegunn/fzf) + opencode | `ttyd 1.7.7` · `fzf 0.38` (in `maude-webterm:local`) | Single Go binary serving an xterm.js front-end on :7681. Each connection runs `launcher.sh`: maude banner → fzf directory picker over `$WORKSPACE` (git repos first) → `exec opencode`. Bind-mounts `${WORKSPACE:-$HOME}` and runs as the host UID/GID so file edits land owned by the host user. Theme tokens mirror `webui/maude.css`. |
 | Agent | [OpenCode](https://opencode.ai) | host: `anomalyco/tap/opencode` · container: `opencode-ai` (npm) | Native static binary in host mode (`./maude`); npm-installed Linux build in `maude-webterm` for the browser terminal. Same `opencode.json` schema, same model, same tool calls — only the baseURL differs (`127.0.0.1`, `ollama`, or `host.docker.internal`) depending on where opencode is running. |
 | Orchestration | Docker Compose v2 | n/a | Single `docker-compose.yml`; the `docker-backend` profile gates the in-container Ollama. |
 | Glue | Bash scripts | — | `fetch-assets.sh`, `turnup.sh`, `maude`, `maude-cpu`, `maude-gpu`. Tested with `set -euo pipefail`. |
@@ -349,6 +349,26 @@ you're already in the browser using Open WebUI, or when you want a
 fresh agent session on another device on the LAN (firewall permitting;
 the port binds to 127.0.0.1 by default — see "Exposing it" below).
 
+### Picking a project on connect
+
+Each WebSocket connection runs `webterm/launcher.sh`, which paints the
+maude banner and drops you into an [fzf](https://github.com/junegunn/fzf)
+picker over the directories under `$WORKSPACE`. Git repos float to the
+top of the list; common noise (`node_modules`, `.venv`, `dist`, …) is
+pruned. Type to fuzzy-filter, Enter to confirm, Esc to bail. Once you
+pick, `opencode` exec's in that directory.
+
+To skip the picker and jump straight to a known repo, use ttyd's
+`--url-arg` syntax:
+
+```
+http://127.0.0.1:7681/?arg=Desktop/repos/foo
+```
+
+The argument is resolved against `$WORKSPACE` and rejected if it
+escapes that root (defence-in-depth for the day the port leaves
+loopback).
+
 ### Workspace
 
 Set by the `WORKSPACE` env var at turnup time, default `$HOME`:
@@ -427,8 +447,9 @@ out of code so you can edit freely without rebuilding the image.
 │   └── config.metal.yaml       # api_base http://host.docker.internal:11434
 ├── opencode.json               # host opencode config (loopback to local Ollama)
 ├── webterm/                    # in-container opencode via ttyd
-│   ├── Dockerfile              # debian-slim + ttyd 1.7.7 + opencode-ai (npm)
-│   ├── start.sh                # applies maude xterm theme, exec's ttyd opencode
+│   ├── Dockerfile              # debian-slim + ttyd 1.7.7 + opencode-ai (npm) + fzf
+│   ├── start.sh                # applies maude xterm theme, exec's ttyd launcher.sh
+│   ├── launcher.sh             # maude banner + fzf directory picker → exec opencode
 │   ├── opencode.docker.json    # baseURL http://ollama:11434/v1
 │   └── opencode.metal.json     # baseURL http://host.docker.internal:11434/v1
 ├── webui/
@@ -502,20 +523,20 @@ make sure it's not bound to loopback only.
 
 | Language | Files | Lines | Blanks | Comments | Code | Complexity |
 |---|---|---|---|---|---|---|
+| Shell | 4 | 455 | 55 | 98 | 302 | 64 |
 | BASH | 3 | 45 | 7 | 18 | 20 | 5 |
 | JSON | 3 | 69 | 0 | 0 | 69 | 0 |
-| Shell | 3 | 335 | 42 | 76 | 217 | 57 |
 | YAML | 3 | 166 | 11 | 41 | 114 | 0 |
-| Markdown | 2 | 526 | 107 | 0 | 419 | 0 |
+| Markdown | 2 | 548 | 112 | 0 | 436 | 0 |
 | CSS | 1 | 207 | 18 | 37 | 152 | 0 |
-| Dockerfile | 1 | 54 | 9 | 17 | 28 | 9 |
+| Dockerfile | 1 | 55 | 9 | 17 | 29 | 9 |
 | Python | 1 | 0 | 0 | 0 | 0 | 0 |
-| **Total** | **17** | **1,402** | **194** | **189** | **1,019** | **71** |
+| **Total** | **18** | **1,545** | **212** | **211** | **1,122** | **78** |
 
-- **Estimated Cost to Develop (organic):** $27,553
-- **Estimated Schedule Effort (organic):** 3.51 months
-- **Estimated People Required (organic):** 0.70
-- **Processed:** 57,578 bytes (0.058 megabytes)
+- **Estimated Cost to Develop (organic):** $30,485
+- **Estimated Schedule Effort (organic):** 3.65 months
+- **Estimated People Required (organic):** 0.74
+- **Processed:** 63,678 bytes (0.064 megabytes)
 
 *Generated with [scc](https://github.com/boyter/scc) on 2026-05-23*
 <!-- scc-end -->

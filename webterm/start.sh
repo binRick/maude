@@ -22,10 +22,20 @@ exec ttyd \
   --writable \
   --interface 0.0.0.0 \
   --port 7681 \
+  --url-arg \
+  --terminal-type xterm-256color \
   --client-option "titleFixed=maude · web terminal" \
   --client-option "fontFamily=ui-monospace, JetBrains Mono, Menlo, Consolas, monospace" \
   --client-option "fontSize=14" \
+  --client-option "fontWeight=400" \
+  --client-option "fontWeightBold=700" \
+  --client-option "lineHeight=1.15" \
+  --client-option "letterSpacing=0.3" \
+  --client-option "cursorBlink=true" \
+  --client-option "cursorStyle=bar" \
+  --client-option "cursorWidth=2" \
+  --client-option "scrollback=10000" \
+  --client-option "rendererType=canvas" \
   --client-option "theme=$THEME" \
   --client-option "disableLeaveAlert=true" \
-  --client-option "cursorBlink=true" \
-  opencode
+  /usr/local/bin/launcher.sh
