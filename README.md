@@ -390,13 +390,18 @@ make sure it's not bound to loopback only.
 
 | Language | Files | Lines | Blanks | Comments | Code | Complexity |
 |---|---|---|---|---|---|---|
-| BASH | 3 | 46 | 6 | 14 | 26 | 4 |
-| YAML | 3 | 109 | 10 | 27 | 72 | 0 |
-| Shell | 2 | 279 | 35 | 53 | 191 | 57 |
-| Dockerfile | 1 | 22 | 5 | 5 | 12 | 3 |
-| Markdown | 1 | 351 | 77 | 0 | 274 | 0 |
+| BASH | 3 | 45 | 7 | 18 | 20 | 5 |
+| YAML | 3 | 92 | 9 | 25 | 58 | 0 |
+| Markdown | 2 | 408 | 85 | 0 | 323 | 0 |
+| Shell | 2 | 276 | 34 | 55 | 187 | 57 |
+| JSON | 1 | 23 | 0 | 0 | 23 | 0 |
 | Python | 1 | 0 | 0 | 0 | 0 | 0 |
-| **Total** | **11** | **807** | **133** | **99** | **575** | **64** |
+| **Total** | **12** | **844** | **135** | **98** | **611** | **62** |
 
-*Generated with [scc](https://github.com/boyter/scc) on 2026-05-20*
+- **Estimated Cost to Develop (organic):** $16,104
+- **Estimated Schedule Effort (organic):** 2.86 months
+- **Estimated People Required (organic):** 0.50
+- **Processed:** 34,616 bytes (0.035 megabytes)
+
+*Generated with [scc](https://github.com/boyter/scc) on 2026-05-22*
 <!-- scc-end -->
