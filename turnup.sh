@@ -17,6 +17,13 @@ cd "$REPO_ROOT"
 MODE="${MODE:-docker}"
 export MODE
 
+# webterm bind-mounts the host workspace into the container; it has to write
+# files as the host user, not root. Default WORKSPACE is $HOME, overridable so
+# you can pin the web terminal to a single repo.
+export MAUDE_UID="$(id -u)"
+export MAUDE_GID="$(id -g)"
+export WORKSPACE="${WORKSPACE:-$HOME}"
+
 say()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[!]\033[0m %s\n' "$*"; }
 
@@ -72,7 +79,7 @@ if [[ "$MODE" == "docker" ]]; then
     warn "or 'docker compose exec ollama ollama pull qwen2.5-coder:14b' after start."
   fi
   COMPOSE_PROFILES=docker-backend
-  EXPECTED_CONTAINERS=(maude-ollama maude-litellm maude-open-webui)
+  EXPECTED_CONTAINERS=(maude-ollama maude-litellm maude-open-webui maude-webterm)
 else
   # metal mode
   command -v ollama >/dev/null || { warn "Native ollama not installed. Run: brew install ollama"; exit 1; }
@@ -125,7 +132,7 @@ else
   say "Host ollama has qwen2.5-coder:14b."
 
   COMPOSE_PROFILES=""
-  EXPECTED_CONTAINERS=(maude-litellm maude-open-webui)
+  EXPECTED_CONTAINERS=(maude-litellm maude-open-webui maude-webterm)
 fi
 
 # --- 3. Start the stack ------------------------------------------------------
@@ -160,6 +167,7 @@ fi
 
 say "Stack is up:  http://127.0.0.1:4000 (litellm — OpenAI-compatible API)"
 say "             http://127.0.0.1:3000 (open-webui — chat UI via litellm)"
+say "             http://127.0.0.1:7681 (webterm — opencode in xterm.js, workspace=$WORKSPACE)"
 [[ "$MODE" == "docker" ]] && say "             http://127.0.0.1:11434 (ollama, in container)"
 [[ "$MODE" == "metal"  ]] && say "             http://127.0.0.1:11434 (ollama, host-native, Metal)"
 echo

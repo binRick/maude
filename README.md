@@ -47,6 +47,11 @@ enough that you actually use it*, and it costs nothing to run.
   no separate config — useful for prompt exploration and quick chats
   alongside agentic editing. Branded `maude`, auth disabled (loopback-only
   bind), offline mode on.
+- **Three ways to drive opencode.** Native TUI (`./maude`), browser
+  terminal (`http://127.0.0.1:7681`, ttyd serving an xterm.js front-end),
+  and the Open WebUI chat at :3000 for non-agentic prompting. The
+  browser terminal is a real PTY — same opencode, same tool calls, same
+  on-disk edits — just rendered through xterm.js in a tab.
 - **Agentic coding via OpenCode**, a single static binary. OpenCode talks
   directly to Ollama's `/v1` endpoint (bypassing LiteLLM — see Architecture
   for why) and uses real structured function-calling: the model can
@@ -76,7 +81,8 @@ enough that you actually use it*, and it costs nothing to run.
 | Model server | [Ollama](https://ollama.com) | `ollama/ollama:0.4.7` (container, docker mode) · Homebrew `ollama` (host, metal mode) | Loads the GGUF weights, exposes the Ollama HTTP API on :11434. Metal-aware on host; CPU-only in containers. The container image is pinned for reproducible offline turnup; the host install is whatever `brew install ollama` gives you. |
 | OpenAI shim | [LiteLLM](https://github.com/BerriAI/litellm) | `ghcr.io/berriai/litellm:main-stable` | Exposes OpenAI v1 at :4000 for clients that don't need tool calling (curl, IDE plugins, Open WebUI). OpenCode bypasses this and talks to Ollama's `/v1` directly because of a [LiteLLM bug forwarding `tool_calls`](https://github.com/BerriAI/litellm/issues/19742). |
 | Chat UI | [Open WebUI](https://github.com/open-webui/open-webui) | `ghcr.io/open-webui/open-webui:main` | Browser chat front-end at :3000. Configured as a LiteLLM client (`OPENAI_API_BASE_URLS=http://litellm:4000/v1`) with Ollama auto-integration off, so all traffic flows through the same canonical path. Auth and signup disabled (loopback bind); `OFFLINE_MODE=True` to suppress update checks and embedding-model downloads. |
-| Agent | [OpenCode](https://opencode.ai) | `anomalyco/tap/opencode` | Native static binary. Reads `opencode.json` from the repo, talks Ollama's OpenAI-compat endpoint directly, edits files with structured tool calls. No container, no UID juggling. |
+| Web terminal | [ttyd](https://github.com/tsl0922/ttyd) + opencode | `ttyd 1.7.7` (in `maude-webterm:local`) | Single Go binary serving an xterm.js front-end on :7681. Runs as a per-connection PTY against `opencode`. Bind-mounts `${WORKSPACE:-$HOME}` and runs as the host UID/GID so file edits land owned by the host user. Theme tokens mirror `webui/maude.css`. |
+| Agent | [OpenCode](https://opencode.ai) | host: `anomalyco/tap/opencode` · container: `opencode-ai` (npm) | Native static binary in host mode (`./maude`); npm-installed Linux build in `maude-webterm` for the browser terminal. Same `opencode.json` schema, same model, same tool calls — only the baseURL differs (`127.0.0.1`, `ollama`, or `host.docker.internal`) depending on where opencode is running. |
 | Orchestration | Docker Compose v2 | n/a | Single `docker-compose.yml`; the `docker-backend` profile gates the in-container Ollama. |
 | Glue | Bash scripts | — | `fetch-assets.sh`, `turnup.sh`, `maude`, `maude-cpu`, `maude-gpu`. Tested with `set -euo pipefail`. |
 | Asset storage | local filesystem (default) | — | `assets/` is gitignored. Git LFS patterns are pre-declared in `.gitattributes` if you want to vendor them. |
@@ -153,12 +159,14 @@ flowchart LR
     Browser([Browser])
     Other([curl / IDE plugin / scripts])
 
-    Dev --> OC["OpenCode CLI<br/>native binary<br/>tools: read/write/edit/bash/grep/…"]
-    Browser --> WebUI["Open WebUI<br/>chat front-end @ :3000"]
+    Dev --> OC["OpenCode CLI (host)<br/>./maude — native binary<br/>tools: read/write/edit/bash/grep/…"]
+    Browser --> WebUI["Open WebUI<br/>chat @ :3000"]
+    Browser --> WebTerm["maude-webterm<br/>ttyd + opencode @ :7681<br/>xterm.js / per-conn PTY"]
     Other --> LiteLLM["LiteLLM proxy<br/>OpenAI v1 @ :4000"]
     WebUI --> LiteLLM
 
     OC -- "OpenAI v1 + tool_calls<br/>(direct)" --> Ollama
+    WebTerm -- "OpenAI v1 + tool_calls<br/>(direct)" --> Ollama
     LiteLLM -- "Ollama API" --> Ollama
 
     subgraph backend["Ollama"]
@@ -171,7 +179,7 @@ flowchart LR
     classDef host fill:#fdf0e6,stroke:#c98140,color:#3a1f08
     classDef container fill:#e8f1fc,stroke:#5a8dc7,color:#0a2540
     class OC host
-    class LiteLLM,WebUI container
+    class LiteLLM,WebUI,WebTerm container
 ```
 
 OpenCode talks **directly** to Ollama's OpenAI-compat endpoint
@@ -271,7 +279,9 @@ brew services stop ollama   # if you also want to stop host ollama
 ```
 
 `./webui-data/` and `./assets/` survive `compose down`. Delete them
-explicitly to wipe chat history or reclaim the model bundle.
+explicitly to wipe chat history or reclaim the model bundle. The web
+terminal has no persistent state of its own — chat/edit history goes
+into `$WORKSPACE/.opencode` on the host.
 
 ## Usage examples
 
@@ -329,6 +339,59 @@ The `sk-maude-local` key is set in `litellm/config.*.yaml`. The
 proxy is bound to `127.0.0.1` only; the key is defence-in-depth, not a
 secret.
 
+## Web terminal (xterm.js)
+
+`http://127.0.0.1:7681` opens a browser-side terminal connected to a
+container that runs `opencode` inside an xterm.js wire (via
+[ttyd](https://github.com/tsl0922/ttyd)). It's the same agent as
+`./maude`, just rendered in a tab instead of your shell — useful when
+you're already in the browser using Open WebUI, or when you want a
+fresh agent session on another device on the LAN (firewall permitting;
+the port binds to 127.0.0.1 by default — see "Exposing it" below).
+
+### Workspace
+
+Set by the `WORKSPACE` env var at turnup time, default `$HOME`:
+
+```bash
+./turnup.sh                                    # workspace = $HOME
+WORKSPACE=~/Desktop/repos/foo ./turnup.sh      # pin to a single repo
+```
+
+The host directory is bind-mounted into the container as `/workspace`
+and the container runs as the host UID/GID (auto-detected by `turnup.sh`),
+so files edited via the web terminal end up owned by your user — no
+chown dance afterwards.
+
+The web terminal does **not** see a `MODE=docker`/`metal` switch — it
+always runs in a container. What changes per mode is the baseURL it
+uses to reach Ollama (`ollama:11434` vs `host.docker.internal:11434`);
+`docker-compose.yml` mounts the right `webterm/opencode.${MODE}.json`.
+
+### State
+
+Opencode writes its history and cache under `$HOME/.opencode` (or
+similar). Because the web terminal sets `HOME=/workspace` (= host
+`$WORKSPACE`), that state lands in the same place a native `./maude`
+session would — which means **don't run a native `./maude` and a
+browser session against the same repo simultaneously**, or you'll race
+state files.
+
+### Exposing it
+
+Default is loopback-only. If you want to reach it from another machine
+on the LAN, override the host bind in a `docker-compose.override.yml`:
+
+```yaml
+services:
+  webterm:
+    ports:
+      - "0.0.0.0:7681:7681"
+```
+
+ttyd itself accepts only one writer per WebSocket; layer your own auth
+(reverse proxy with basic-auth, Tailscale, etc.) before doing this.
+
 ## Chat UI (Open WebUI)
 
 After `./turnup.sh`, open <http://127.0.0.1:3000>. The UI is pre-wired to
@@ -358,11 +421,16 @@ out of code so you can edit freely without rebuilding the image.
 
 ```
 .
-├── docker-compose.yml          # ollama (profile: docker-backend) + litellm + open-webui
+├── docker-compose.yml          # ollama (profile: docker-backend) + litellm + open-webui + webterm
 ├── litellm/
 │   ├── config.docker.yaml      # api_base http://ollama:11434
 │   └── config.metal.yaml       # api_base http://host.docker.internal:11434
-├── opencode.json               # OpenCode provider/model definition (direct Ollama)
+├── opencode.json               # host opencode config (loopback to local Ollama)
+├── webterm/                    # in-container opencode via ttyd
+│   ├── Dockerfile              # debian-slim + ttyd 1.7.7 + opencode-ai (npm)
+│   ├── start.sh                # applies maude xterm theme, exec's ttyd opencode
+│   ├── opencode.docker.json    # baseURL http://ollama:11434/v1
+│   └── opencode.metal.json     # baseURL http://host.docker.internal:11434/v1
 ├── webui/
 │   └── maude.css               # maude-branded Custom CSS for Open WebUI (paste once)
 ├── fetch-assets.sh             # online: pull & save images, prefetch model blobs
@@ -435,18 +503,19 @@ make sure it's not bound to loopback only.
 | Language | Files | Lines | Blanks | Comments | Code | Complexity |
 |---|---|---|---|---|---|---|
 | BASH | 3 | 45 | 7 | 18 | 20 | 5 |
-| YAML | 3 | 129 | 10 | 35 | 84 | 0 |
-| Markdown | 2 | 457 | 94 | 0 | 363 | 0 |
-| Shell | 2 | 286 | 35 | 59 | 192 | 57 |
+| JSON | 3 | 69 | 0 | 0 | 69 | 0 |
+| Shell | 3 | 335 | 42 | 76 | 217 | 57 |
+| YAML | 3 | 166 | 11 | 41 | 114 | 0 |
+| Markdown | 2 | 526 | 107 | 0 | 419 | 0 |
 | CSS | 1 | 207 | 18 | 37 | 152 | 0 |
-| JSON | 1 | 23 | 0 | 0 | 23 | 0 |
+| Dockerfile | 1 | 54 | 9 | 17 | 28 | 9 |
 | Python | 1 | 0 | 0 | 0 | 0 | 0 |
-| **Total** | **13** | **1,147** | **164** | **149** | **834** | **62** |
+| **Total** | **17** | **1,402** | **194** | **189** | **1,019** | **71** |
 
-- **Estimated Cost to Develop (organic):** $22,326
-- **Estimated Schedule Effort (organic):** 3.24 months
-- **Estimated People Required (organic):** 0.61
-- **Processed:** 47,053 bytes (0.047 megabytes)
+- **Estimated Cost to Develop (organic):** $27,553
+- **Estimated Schedule Effort (organic):** 3.51 months
+- **Estimated People Required (organic):** 0.70
+- **Processed:** 57,578 bytes (0.058 megabytes)
 
 *Generated with [scc](https://github.com/boyter/scc) on 2026-05-23*
 <!-- scc-end -->

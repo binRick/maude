@@ -52,6 +52,43 @@ services:
       retries: 12
       start_period: 20s
 
+  # Web terminal — ttyd serving an xterm.js front-end on :7681, running
+  # opencode against the local stack. Bind-mounts $WORKSPACE (default $HOME)
+  # so file edits land on the host as the host user. Talks to Ollama
+  # directly (same reason ./maude does — LiteLLM's tool_calls forwarding
+  # bug); the upstream URL switches by mode via the opencode.${MODE}.json
+  # mount.
+  webterm:
+    build:
+      context: ./webterm
+    image: maude-webterm:local
+    container_name: maude-webterm
+    restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy
+        required: false        # metal mode: ollama isn't in compose
+    ports:
+      - "127.0.0.1:7681:7681"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    user: "${MAUDE_UID:-1000}:${MAUDE_GID:-1000}"
+    working_dir: /workspace
+    environment:
+      WORKSPACE: /workspace
+      OPENCODE_CONFIG: /etc/maude/opencode.json
+      HOME: /workspace
+      TERM: xterm-256color
+    volumes:
+      - ${WORKSPACE:-${HOME}}:/workspace:rw
+      - ./webterm/opencode.${MODE:-docker}.json:/etc/maude/opencode.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:7681 -o /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+
   # Open WebUI — chat front-end. Talks to LiteLLM as a plain OpenAI provider,
   # so it gets exactly what every other client sees (model name `qwen-coder`).
   # We deliberately do NOT enable its built-in Ollama integration: routing

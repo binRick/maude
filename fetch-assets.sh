@@ -11,6 +11,7 @@
 #       ollama.tar       (docker save, ~2.3 GB)
 #       litellm.tar      (docker save, ~373 MB)
 #       open-webui.tar   (docker save, ~1.5 GB)
+#       webterm.tar      (docker save, ~600 MB — locally-built ttyd + opencode)
 #     ollama-data/
 #       models/...       (pre-pulled Ollama blobs, ~19 GB for qwen3-coder:30b)
 #
@@ -36,6 +37,7 @@ BASE_MODEL="qwen3-coder:${MODEL_SIZE}"
 OLLAMA_IMAGE="ollama/ollama:0.4.7"
 LITELLM_IMAGE="ghcr.io/berriai/litellm:main-stable"
 WEBUI_IMAGE="ghcr.io/open-webui/open-webui:main"
+WEBTERM_IMAGE="maude-webterm:local"
 
 say()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[!]\033[0m %s\n' "$*"; }
@@ -69,6 +71,14 @@ save_image "$LITELLM_IMAGE" assets/images/litellm.tar
 say "Pulling $WEBUI_IMAGE"
 docker pull "$WEBUI_IMAGE"
 save_image "$WEBUI_IMAGE" assets/images/open-webui.tar
+
+# webterm is built locally from ./webterm/Dockerfile — there's no upstream
+# pull. The build itself reaches out to deb.nodesource.com, the npm registry,
+# and the ttyd GitHub release, so it still counts as the "online step" for
+# this image. Subsequent ./turnup.sh runs use the saved tar offline.
+say "Building $WEBTERM_IMAGE from ./webterm"
+docker compose build webterm
+save_image "$WEBTERM_IMAGE" assets/images/webterm.tar
 
 # --- 2. Pre-populate the Ollama model store ----------------------------------
 # Run a throwaway ollama container against ./assets/ollama-data so the pulled
