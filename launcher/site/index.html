@@ -32,9 +32,16 @@
       font-size: 14px;
       line-height: 1.5;
       min-height: 100vh;
+      height: 100%;
     }
+    body { height: 100vh; overflow: hidden; }
 
-    body {
+    /* ====== Picker view ====== */
+    #picker-view {
+      height: 100%;
+      overflow-y: auto;
+    }
+    #picker-view .inner {
       max-width: 880px;
       margin: 0 auto;
       padding: 56px 24px 80px;
@@ -81,9 +88,15 @@
       align-items: baseline;
       justify-content: space-between;
     }
-    h2 .hint { font-size: 10.5px; color: var(--fg-mute); letter-spacing: 0.1em; text-transform: none; font-style: italic; }
+    h2 .hint {
+      font-size: 10.5px;
+      color: var(--fg-mute);
+      letter-spacing: 0.1em;
+      text-transform: none;
+      font-style: italic;
+    }
 
-    /* ----- Projects ----- */
+    /* ----- Project tiles ----- */
     #projects {
       list-style: none;
       display: grid;
@@ -135,7 +148,7 @@
       text-align: center;
     }
 
-    /* ----- Path input + action bar ----- */
+    /* ----- Inputs ----- */
     .path-input {
       display: flex;
       gap: 8px;
@@ -195,49 +208,7 @@
       flex-wrap: wrap;
     }
 
-    /* ----- Tools ----- */
-    .tools {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-      gap: 12px;
-    }
-    .tool {
-      display: block;
-      background: var(--bg-input);
-      border: 1px solid var(--rule);
-      border-radius: 6px;
-      padding: 16px;
-      text-decoration: none;
-      color: var(--fg);
-      transition: border-color 80ms ease, background 80ms ease;
-    }
-    .tool:hover {
-      border-color: var(--accent);
-      background: var(--bg);
-    }
-    .tool .name {
-      color: var(--accent);
-      font-weight: 700;
-      font-size: 13px;
-      margin-bottom: 6px;
-      letter-spacing: 0.02em;
-    }
-    .tool .desc {
-      color: var(--fg-dim);
-      font-size: 11.5px;
-      line-height: 1.5;
-    }
-    .tool.passive { cursor: default; }
-    .tool.passive:hover { border-color: var(--rule); background: var(--bg-input); }
-    .tool code {
-      background: var(--bg);
-      color: var(--accent-soft);
-      padding: 1px 6px;
-      border-radius: 3px;
-      font-size: 11px;
-    }
-
-    /* ----- Status ----- */
+    /* ----- Service status (picker view) ----- */
     .status ul {
       list-style: none;
       display: grid;
@@ -256,7 +227,6 @@
       height: 8px;
       border-radius: 50%;
       background: var(--fg-mute);
-      box-shadow: none;
       flex-shrink: 0;
       transition: background 200ms ease, box-shadow 200ms ease;
     }
@@ -278,72 +248,208 @@
     }
     .footer a { color: var(--fg-mute); border-bottom: 1px dotted var(--rule); }
     .footer a:hover { color: var(--accent); border-color: var(--accent); }
+
+    /* ====== Tab view ====== */
+    #tab-view {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+    }
+    #tab-view[data-active="true"] { display: flex; }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 18px;
+      background: var(--bg-elev);
+      border-bottom: 1px solid var(--rule);
+      height: 48px;
+      flex-shrink: 0;
+    }
+    .topbar .wordmark-sm {
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+      font-size: 16px;
+    }
+    .topbar .divider {
+      width: 1px;
+      height: 20px;
+      background: var(--rule);
+    }
+    .topbar .project-path {
+      color: var(--fg);
+      font-size: 13px;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      letter-spacing: 0.01em;
+    }
+    .topbar .project-path .none {
+      color: var(--fg-mute);
+      font-style: italic;
+    }
+    .topbar button.change {
+      background: transparent;
+      color: var(--fg);
+      border: 1px solid var(--rule);
+      padding: 6px 12px;
+      font-size: 11.5px;
+      font-weight: 400;
+      letter-spacing: 0.02em;
+    }
+    .topbar button.change:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .status-mini {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .status-mini .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--fg-mute);
+      transition: background 200ms ease, box-shadow 200ms ease;
+      cursor: help;
+    }
+    .status-mini .dot[data-status="up"] {
+      background: var(--ok);
+      box-shadow: 0 0 6px rgba(159, 187, 110, 0.55);
+    }
+    .status-mini .dot[data-status="down"] { background: var(--bad); }
+
+    .tabs {
+      display: flex;
+      background: var(--bg-elev);
+      border-bottom: 1px solid var(--rule);
+      flex-shrink: 0;
+    }
+    .tabs .tab {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      padding: 12px 28px;
+      color: var(--fg-dim);
+      font-family: var(--mono);
+      font-size: 12.5px;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      border-radius: 0;
+      font-weight: 400;
+    }
+    .tabs .tab:hover {
+      color: var(--fg);
+      background: var(--bg-input);
+    }
+    .tabs .tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      font-weight: 600;
+    }
+
+    .iframes {
+      flex: 1;
+      position: relative;
+      background: var(--bg);
+      min-height: 0;
+    }
+    .frame {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: none;
+      background: var(--bg);
+    }
+    .frame.active { display: block; }
   </style>
 </head>
 <body>
-  <header class="brand">
-    <div class="wordmark">maude</div>
-    <div class="strapline">offline · local · no cloud</div>
-  </header>
 
-  <section>
-    <h2>
-      <span>Open in web terminal</span>
-      <span class="hint" id="scan-state">scanning workspace…</span>
-    </h2>
-    <ul id="projects">
-      <div class="empty">Scanning workspace for git repos…</div>
-    </ul>
+  <!-- ====== Picker view ====== -->
+  <div id="picker-view">
+    <div class="inner">
+      <header class="brand">
+        <div class="wordmark">maude</div>
+        <div class="strapline">offline · local · no cloud</div>
+      </header>
 
-    <form class="path-input" id="path-form">
-      <input type="text" id="path-input" autocomplete="off" spellcheck="false"
-             placeholder="path under workspace, e.g. Desktop/repos/foo">
-      <button type="submit">Open ▸</button>
-    </form>
+      <section>
+        <h2>
+          <span>Pick a project</span>
+          <span class="hint" id="scan-state">scanning workspace…</span>
+        </h2>
+        <ul id="projects">
+          <div class="empty">Scanning workspace for git repos…</div>
+        </ul>
 
-    <div class="actions">
-      <button id="picker-btn" class="ghost">Open with fzf picker</button>
-      <button id="rescan-btn" class="ghost">Rescan workspace</button>
-      <button id="clear-recents-btn" class="ghost">Clear recents</button>
+        <form class="path-input" id="path-form">
+          <input type="text" id="path-input" autocomplete="off" spellcheck="false"
+                 placeholder="path under workspace, e.g. Desktop/repos/foo">
+          <button type="submit">Open ▸</button>
+        </form>
+
+        <div class="actions">
+          <button id="picker-btn" class="ghost">Open with fzf picker (no preselected dir)</button>
+          <button id="rescan-btn" class="ghost">Rescan workspace</button>
+          <button id="clear-recents-btn" class="ghost">Clear recents</button>
+        </div>
+      </section>
+
+      <section class="status">
+        <h2><span>Service status</span><span class="hint" id="status-stamp">—</span></h2>
+        <ul>
+          <li data-svc="ollama"><span class="dot"></span><span class="name">ollama</span><span class="port">:11434</span></li>
+          <li data-svc="litellm"><span class="dot"></span><span class="name">litellm</span><span class="port">:4000</span></li>
+          <li data-svc="webui"><span class="dot"></span><span class="name">open webui</span><span class="port">:3000</span></li>
+          <li data-svc="webterm"><span class="dot"></span><span class="name">web terminal</span><span class="port">:7681</span></li>
+        </ul>
+      </section>
+
+      <footer class="footer">
+        Qwen 3 Coder 30B-A3B · pinned · offline · no telemetry ·
+        <a href="https://github.com/binRick/maude" target="_blank" rel="noopener">repo</a>
+      </footer>
     </div>
-  </section>
+  </div>
 
-  <section>
-    <h2><span>Tools</span></h2>
-    <div class="tools">
-      <a class="tool" href="http://127.0.0.1:7681/" target="_blank" rel="noopener">
-        <div class="name">▸ web terminal</div>
-        <div class="desc">opencode in the browser — ttyd + xterm.js + fzf directory picker</div>
-      </a>
-      <a class="tool" href="http://127.0.0.1:3000/" target="_blank" rel="noopener">
-        <div class="name">◆ open webui</div>
-        <div class="desc">free-form chat with Qwen 3 Coder via LiteLLM (no tool calls)</div>
-      </a>
-      <div class="tool passive">
-        <div class="name">● tui mode</div>
-        <div class="desc">native opencode — <code>./maude</code> in your shell</div>
+  <!-- ====== Tab view ====== -->
+  <div id="tab-view">
+    <header class="topbar">
+      <span class="wordmark-sm">maude</span>
+      <span class="divider"></span>
+      <span class="project-path" id="project-path"><span class="none">no project</span></span>
+      <button class="change" id="change-btn">change project</button>
+      <div class="status-mini" id="status-mini">
+        <span class="dot" data-svc="ollama"  title="ollama"></span>
+        <span class="dot" data-svc="litellm" title="litellm"></span>
+        <span class="dot" data-svc="webui"   title="open webui"></span>
+        <span class="dot" data-svc="webterm" title="web terminal"></span>
       </div>
+    </header>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab" data-tab="tui"  role="tab">▸ opencode tui</button>
+      <button class="tab" data-tab="chat" role="tab">◆ open webui</button>
+    </nav>
+
+    <div class="iframes">
+      <iframe class="frame" id="frame-tui"  data-frame="tui"  title="opencode TUI"></iframe>
+      <iframe class="frame" id="frame-chat" data-frame="chat" title="Open WebUI"></iframe>
     </div>
-  </section>
-
-  <section class="status">
-    <h2><span>Service status</span><span class="hint" id="status-stamp">—</span></h2>
-    <ul>
-      <li data-svc="ollama"><span class="dot"></span><span class="name">ollama</span><span class="port">:11434</span></li>
-      <li data-svc="litellm"><span class="dot"></span><span class="name">litellm</span><span class="port">:4000</span></li>
-      <li data-svc="webui"><span class="dot"></span><span class="name">open webui</span><span class="port">:3000</span></li>
-      <li data-svc="webterm"><span class="dot"></span><span class="name">web terminal</span><span class="port">:7681</span></li>
-    </ul>
-  </section>
-
-  <footer class="footer">
-    Qwen 3 Coder 30B-A3B · pinned · offline · no telemetry ·
-    <a href="https://github.com/binRick/maude" target="_blank" rel="noopener">repo</a>
-  </footer>
+  </div>
 
   <script>
-    // ----- Config -------------------------------------------------------
+    // ----- Config ------------------------------------------------------
     const WEBTERM_URL = 'http://127.0.0.1:7681/';
+    const WEBUI_URL   = 'http://127.0.0.1:3000/';
     const SERVICES = [
       { id: 'ollama',  url: 'http://127.0.0.1:11434/api/tags' },
       { id: 'litellm', url: 'http://127.0.0.1:4000/health/liveliness' },
@@ -353,42 +459,120 @@
     const SKIP_DIRS = new Set([
       'node_modules', '.venv', '.git', '__pycache__', 'dist', 'build',
       'target', '.next', '.cache', 'Library', '.Trash', '.npm', '.cargo',
-      'go', '.docker', '.rbenv', '.pyenv', '.nvm', '.gem',
+      'go', '.docker', '.rbenv', '.pyenv', '.nvm', '.gem', '.local',
     ]);
     const MAX_RECENTS = 8;
-    const STORAGE_KEY = 'maude:recents';
+    const STORAGE = {
+      RECENTS: 'maude:recents',
+      PROJECT: 'maude:current-project',
+      TAB:     'maude:current-tab',
+    };
 
-    // ----- Recents (localStorage) --------------------------------------
+    // ----- State -------------------------------------------------------
+    let currentProject = localStorage.getItem(STORAGE.PROJECT) || '';
+    let currentTab     = localStorage.getItem(STORAGE.TAB) || 'tui';
+    let scannedRepos   = [];
+
+    // ----- Recents -----------------------------------------------------
     const Recents = {
       get() {
-        try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+        try { return JSON.parse(localStorage.getItem(STORAGE.RECENTS) || '[]'); }
         catch { return []; }
       },
       save(path) {
+        if (!path) return;
         let r = this.get().filter(p => p !== path);
         r.unshift(path);
         r = r.slice(0, MAX_RECENTS);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(r));
+        localStorage.setItem(STORAGE.RECENTS, JSON.stringify(r));
       },
-      clear() {
-        localStorage.removeItem(STORAGE_KEY);
-      },
+      clear() { localStorage.removeItem(STORAGE.RECENTS); },
     };
 
-    // ----- Open in web terminal ----------------------------------------
-    function openWebTerm(path) {
-      if (path) Recents.save(path);
-      const url = path
-        ? `${WEBTERM_URL}?arg=${encodeURIComponent(path)}`
-        : WEBTERM_URL;
-      window.open(url, '_blank', 'noopener');
-      // Re-render to surface the newly-added recent on next focus.
-      renderProjects();
+    // ----- Project / view state ----------------------------------------
+    function setProject(path) {
+      currentProject = path || '';
+      if (path) {
+        Recents.save(path);
+        localStorage.setItem(STORAGE.PROJECT, path);
+      } else {
+        localStorage.removeItem(STORAGE.PROJECT);
+      }
+      applyView();
     }
 
-    // ----- Render projects --------------------------------------------
-    let scannedRepos = [];
+    function setTab(tab) {
+      currentTab = tab;
+      localStorage.setItem(STORAGE.TAB, tab);
+      applyView();
+    }
 
+    function applyView() {
+      const picker = document.getElementById('picker-view');
+      const tabs   = document.getElementById('tab-view');
+      const hasProject = currentProject !== '';
+
+      // Show tab view as soon as the user picks (even an empty selection
+      // from "Open with fzf picker" lands them in tab view, with the tui
+      // iframe showing the fzf picker at $WORKSPACE root).
+      if (hasProject || sessionStorage.getItem('maude:wants-tabs') === '1') {
+        picker.style.display = 'none';
+        tabs.dataset.active = 'true';
+        document.body.style.overflow = 'hidden';
+        renderTabView();
+      } else {
+        picker.style.display = '';
+        tabs.dataset.active = 'false';
+        document.body.style.overflow = '';
+        renderProjects();
+      }
+    }
+
+    function renderTabView() {
+      // Project path / breadcrumb
+      const pathEl = document.getElementById('project-path');
+      if (currentProject) {
+        pathEl.textContent = '~/' + currentProject;
+      } else {
+        pathEl.innerHTML = '<span class="none">(no project — using fzf picker)</span>';
+      }
+
+      // Tab buttons
+      document.querySelectorAll('.tabs .tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.tab === currentTab);
+      });
+
+      // Iframes — load lazily; reload tui when project changes; chat once.
+      const tui  = document.getElementById('frame-tui');
+      const chat = document.getElementById('frame-chat');
+
+      const wantTuiSrc = currentProject
+        ? `${WEBTERM_URL}?arg=${encodeURIComponent(currentProject)}`
+        : WEBTERM_URL;
+
+      if (tui.dataset.loadedFor !== currentProject) {
+        tui.src = wantTuiSrc;
+        tui.dataset.loadedFor = currentProject;
+      }
+      if (!chat.src) {
+        chat.src = WEBUI_URL;
+      }
+
+      tui.classList.toggle('active', currentTab === 'tui');
+      chat.classList.toggle('active', currentTab === 'chat');
+    }
+
+    function openProject(path) {
+      sessionStorage.setItem('maude:wants-tabs', '1');
+      setProject(path);
+    }
+
+    function backToPicker() {
+      sessionStorage.removeItem('maude:wants-tabs');
+      setProject('');
+    }
+
+    // ----- Render projects list ----------------------------------------
     function escapeHtml(s) {
       return s.replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
     }
@@ -400,12 +584,8 @@
       const repoSet = new Set(scannedRepos);
 
       const items = [];
-      for (const p of recents) {
-        items.push({ path: p, kind: repoSet.has(p) ? 'recent+git' : 'recent' });
-      }
-      for (const p of scannedRepos) {
-        if (!recentSet.has(p)) items.push({ path: p, kind: 'git' });
-      }
+      for (const p of recents) items.push({ path: p, kind: repoSet.has(p) ? 'recent+git' : 'recent' });
+      for (const p of scannedRepos) if (!recentSet.has(p)) items.push({ path: p, kind: 'git' });
 
       if (items.length === 0) {
         ul.innerHTML = `<div class="empty">No projects detected.
@@ -425,13 +605,12 @@
       }).join('');
 
       ul.querySelectorAll('li').forEach(li => {
-        li.addEventListener('click', () => openWebTerm(li.dataset.path));
+        li.addEventListener('click', () => openProject(li.dataset.path));
       });
     }
 
-    // ----- Scan workspace via nginx autoindex --------------------------
+    // ----- Workspace scan ---------------------------------------------
     async function listDir(rel) {
-      // rel must be either '' or end with '/'
       const url = '/api/list/' + rel;
       try {
         const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
@@ -447,12 +626,8 @@
       renderProjects();
 
       const top = await listDir('');
-      if (!top) {
-        stamp.textContent = 'workspace not readable';
-        return;
-      }
+      if (!top) { stamp.textContent = 'workspace not readable'; return; }
 
-      // Depth-2 .git search: top-level dirs, plus one level under each.
       const tasks = [];
       for (const e of top) {
         if (e.type !== 'directory') continue;
@@ -461,8 +636,7 @@
           const sub = await listDir(e.name + '/');
           if (!sub) return;
           if (sub.some(s => s.name === '.git' && s.type === 'directory')) {
-            scannedRepos.push(e.name);
-            return;
+            scannedRepos.push(e.name); return;
           }
           for (const child of sub) {
             if (child.type !== 'directory') continue;
@@ -483,22 +657,20 @@
       renderProjects();
     }
 
-    // ----- Service status pings ----------------------------------------
+    // ----- Status pings (both views) -----------------------------------
     async function ping(url) {
-      try {
-        await fetch(url, { mode: 'no-cors', cache: 'no-store' });
-        return true;
-      } catch { return false; }
+      try { await fetch(url, { mode: 'no-cors', cache: 'no-store' }); return true; }
+      catch { return false; }
     }
     async function refreshStatus() {
       await Promise.all(SERVICES.map(async svc => {
-        const li = document.querySelector(`[data-svc="${svc.id}"]`);
-        if (!li) return;
         const ok = await ping(svc.url);
-        li.dataset.status = ok ? 'up' : 'down';
+        document.querySelectorAll(`[data-svc="${svc.id}"]`).forEach(el => {
+          el.dataset.status = ok ? 'up' : 'down';
+        });
       }));
       const stamp = document.getElementById('status-stamp');
-      stamp.textContent = new Date().toLocaleTimeString();
+      if (stamp) stamp.textContent = new Date().toLocaleTimeString();
     }
 
     // ----- Bindings ----------------------------------------------------
@@ -507,22 +679,37 @@
       const input = document.getElementById('path-input');
       const path = input.value.trim();
       if (!path) return;
-      openWebTerm(path);
+      openProject(path);
       input.value = '';
     });
-    document.getElementById('picker-btn').addEventListener('click', () => openWebTerm(''));
+
+    document.getElementById('picker-btn').addEventListener('click', () => {
+      // Land in tab view with no preselected dir — the tui iframe will
+      // show launcher.sh's hierarchical fzf picker from $WORKSPACE.
+      sessionStorage.setItem('maude:wants-tabs', '1');
+      setProject('');
+    });
+
     document.getElementById('rescan-btn').addEventListener('click', scanWorkspace);
+
     document.getElementById('clear-recents-btn').addEventListener('click', () => {
       Recents.clear();
       renderProjects();
     });
 
-    // Re-render recents when the tab regains focus (in case a sibling
-    // launcher tab added a new project).
-    window.addEventListener('focus', renderProjects);
+    document.getElementById('change-btn').addEventListener('click', backToPicker);
+
+    document.querySelectorAll('.tabs .tab').forEach(t => {
+      t.addEventListener('click', () => setTab(t.dataset.tab));
+    });
+
+    // Re-render recents when the tab regains focus.
+    window.addEventListener('focus', () => {
+      if (sessionStorage.getItem('maude:wants-tabs') !== '1') renderProjects();
+    });
 
     // ----- Init --------------------------------------------------------
-    renderProjects();
+    applyView();
     refreshStatus();
     setInterval(refreshStatus, 10000);
     scanWorkspace();
