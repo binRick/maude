@@ -406,6 +406,24 @@
       color: var(--fg-mute);
       font-style: italic;
     }
+    .context-strip .copy-btn {
+      pointer-events: auto;
+      margin-left: 10px;
+      background: transparent;
+      color: var(--fg);
+      border: 1px solid var(--rule);
+      padding: 3px 9px;
+      font-family: var(--mono);
+      font-size: 10.5px;
+      font-weight: 400;
+      letter-spacing: 0.04em;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .context-strip .copy-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
   </style>
 </head>
 <body>
@@ -481,6 +499,7 @@
       <div class="context-strip" id="context-strip">
         <span class="pill"><span class="label">context</span><span id="context-path">—</span></span>
         <span class="hint">pre-filled in the chat input · press Enter to send</span>
+        <button class="copy-btn" id="copy-context-btn" type="button">copy context</button>
       </div>
       <iframe class="frame" id="frame-tui"  data-frame="tui"  title="opencode TUI"></iframe>
       <iframe class="frame" id="frame-chat" data-frame="chat" title="Open WebUI"></iframe>
@@ -569,23 +588,42 @@
       }
     }
 
-    // Build the chat URL. Open WebUI accepts ?q=<text> to pre-fill the
-    // composer; with a project set, we pre-fill a one-line context that
-    // tells the model what dir we're working in. The user presses Enter to
-    // send it as the first message — Open WebUI doesn't expose a true
-    // system-prompt URL parameter, so this is the cleanest cross-version
-    // hook we can rely on.
+    function contextMessage(project) {
+      return `I'm working in ~/${project} for this session. ` +
+             `Treat references to "this repo" / "the codebase" as files under that path. ` +
+             `(You don't have file-system tools here — switch to the opencode TUI tab if you need to read or edit files.)`;
+    }
+
+    // Build the chat URL. We pre-fill the composer via ?q=<text>.
+    //
+    // We *intentionally* don't pass ?temporary=true: in iframe context it
+    // triggers an Open WebUI modal whose focus-trap blows up ("must have at
+    // least one container with at least one tabbable node"), and the rest
+    // of the page silently fails to render. The user sees a blank chat tab.
+    // Default chats are fine — you can use the kebab menu in Open WebUI to
+    // delete the noise later if you care.
     function buildChatUrl(project) {
       if (!project) return WEBUI_URL;
-      const ctx = `I'm working in ~/${project} for this session. ` +
-                  `Treat references to "this repo" / "the codebase" as files under that path. ` +
-                  `(You don't have file-system tools here — switch to the opencode TUI tab if you need to read or edit files.)`;
-      // temporary=true so each project-switch starts a clean throwaway chat
-      // instead of polluting Open WebUI's history with one-off contexts.
       const u = new URL(WEBUI_URL);
-      u.searchParams.set('q', ctx);
-      u.searchParams.set('temporary', 'true');
+      u.searchParams.set('q', contextMessage(project));
       return u.toString();
+    }
+
+    // Copy-to-clipboard fallback: if ?q= ever stops working across Open
+    // WebUI versions, the user can still one-click the context onto their
+    // clipboard from the strip and paste with ⌘V.
+    async function copyContextToClipboard() {
+      if (!currentProject) return;
+      const text = contextMessage(currentProject);
+      try {
+        await navigator.clipboard.writeText(text);
+        const btn = document.getElementById('copy-context-btn');
+        const orig = btn.textContent;
+        btn.textContent = 'copied ✓';
+        setTimeout(() => { btn.textContent = orig; }, 1600);
+      } catch (e) {
+        console.warn('clipboard write failed', e);
+      }
     }
 
     function renderTabView() {
@@ -774,6 +812,8 @@
     document.querySelectorAll('.tabs .tab').forEach(t => {
       t.addEventListener('click', () => setTab(t.dataset.tab));
     });
+
+    document.getElementById('copy-context-btn').addEventListener('click', copyContextToClipboard);
 
     // Re-render recents when the tab regains focus.
     window.addEventListener('focus', () => {
