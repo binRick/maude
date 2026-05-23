@@ -64,6 +64,14 @@ else
   candidates=$(mktemp)
   trap 'rm -f "$candidates"' EXIT
 
+  # `find` returns non-zero when it can't enter a directory (macOS protects
+  # .Trash, ~/Library/Application Support sub-trees, etc. — those land in
+  # the bind mount as EACCES/EPERM). With `set -e -o pipefail` that would
+  # kill the launcher before fzf ever opened, so relax both modes for the
+  # search block and re-enable afterwards.
+  set +e
+  set +o pipefail
+
   # Pass 1: git repos under WORKSPACE (high signal — the dirs you actually
   # want to run opencode in).
   find "$WORKSPACE" -maxdepth 6 -type d -name .git \
@@ -76,10 +84,15 @@ else
     \( -name .git -o -name node_modules -o -name .venv \
        -o -name __pycache__ -o -name dist -o -name build \
        -o -name target -o -name .next -o -name .cache \
-       -o -name 'Library' \) -prune \
+       -o -name 'Library' -o -name '.Trash' -o -name '.cargo' \
+       -o -name '.rbenv' -o -name '.pyenv' -o -name '.nvm' \
+       -o -name 'go' -o -name '.docker' -o -name '.gem' \) -prune \
     -o -type d -print 2>/dev/null \
     | sort -u \
-    | grep -vxFf "$candidates" >> "$candidates" || true
+    | grep -vxFf "$candidates" >> "$candidates"
+
+  set -e
+  set -o pipefail
 
   if ! [[ -s "$candidates" ]]; then
     printf '  %s!%s  no directories found under %s\n\n' "$ACCENT" "$RESET" "$WORKSPACE"
