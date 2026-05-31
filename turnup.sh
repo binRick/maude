@@ -4,7 +4,8 @@
 #
 #   MODE=docker (default)  Ollama runs as a container. CPU-only on macOS.
 #   MODE=metal             Ollama runs natively on the host (Metal GPU).
-#                          Only LiteLLM (and on-demand Aider) live in compose.
+#                          Only LiteLLM, Open WebUI, the web terminal, and the
+#                          launcher live in compose; Ollama is on the host.
 #
 # Loads bundled Docker images from assets/images/*.tar (skipping any already
 # present) and starts the compose stack. Idempotent.
@@ -75,8 +76,8 @@ fi
 # --- 2. Backend-specific prep ------------------------------------------------
 if [[ "$MODE" == "docker" ]]; then
   if [[ ! -d assets/ollama-data/models ]] || [[ -z "$(ls -A assets/ollama-data/models 2>/dev/null || true)" ]]; then
-    warn "assets/ollama-data/models is empty. Run ./bundle.sh on an online machine first,"
-    warn "or 'docker compose exec ollama ollama pull qwen2.5-coder:14b' after start."
+    warn "assets/ollama-data/models is empty. Run ./fetch-assets.sh on an online machine first,"
+    warn "or 'docker compose exec ollama ollama pull qwen3-coder:30b' after start."
   fi
   COMPOSE_PROFILES=docker-backend
   EXPECTED_CONTAINERS=(maude-ollama maude-litellm maude-open-webui maude-webterm maude-launcher)
@@ -110,7 +111,7 @@ else
   say "Host ollama is up."
 
   # Seed ~/.ollama from the bundle if the model isn't on the host yet.
-  if ! ollama list | awk '{print $1}' | grep -qx "qwen2.5-coder:14b"; then
+  if ! ollama list | awk '{print $1}' | grep -qx "qwen3-coder:30b"; then
     if [[ -d assets/ollama-data/models ]] && [[ -n "$(ls -A assets/ollama-data/models 2>/dev/null)" ]]; then
       say "Seeding ~/.ollama from assets/ollama-data (rsync)..."
       mkdir -p "$HOME/.ollama/models"
@@ -123,13 +124,13 @@ else
       done
     else
       warn "Model not on host and no assets/ollama-data bundle to seed from."
-      warn "Run: ollama pull qwen2.5-coder:14b"
+      warn "Run: ollama pull qwen3-coder:30b"
       exit 1
     fi
   fi
-  ollama list | awk '{print $1}' | grep -qx "qwen2.5-coder:14b" \
-    || { warn "Model qwen2.5-coder:14b still not visible after seeding."; exit 1; }
-  say "Host ollama has qwen2.5-coder:14b."
+  ollama list | awk '{print $1}' | grep -qx "qwen3-coder:30b" \
+    || { warn "Model qwen3-coder:30b still not visible after seeding."; exit 1; }
+  say "Host ollama has qwen3-coder:30b."
 
   COMPOSE_PROFILES=""
   EXPECTED_CONTAINERS=(maude-litellm maude-open-webui maude-webterm maude-launcher)

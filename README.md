@@ -38,7 +38,8 @@ enough that you actually use it*, and it costs nothing to run.
     Saturates all cores during generation.
   - `metal` — Ollama runs natively on the macOS host with Metal/GPU
     acceleration. Roughly 5–10× faster generation on Apple Silicon and
-    keeps the CPU idle. Only LiteLLM lives in compose.
+    keeps the CPU idle. Only Ollama leaves compose; LiteLLM, Open WebUI,
+    the web terminal, and the launcher still run as containers.
 - **OpenAI-compatible endpoint** at `http://127.0.0.1:4000` via LiteLLM,
   so non-agent clients (curl, IDE plugins, custom scripts) work against
   the local model without code changes.
@@ -211,6 +212,39 @@ plugins, OpenWebUI, custom scripts).
   - metal mode: the model lives in unified memory and uses the GPU; this is
     the intended path.
 
+## Services, ports & configuration
+
+Everything binds to `127.0.0.1` only. After `./turnup.sh` you have five
+local services (the native TUI, `./maude`, is not a service — it runs in
+your shell):
+
+| Service | URL | Container | What it's for |
+|---|---|---|---|
+| **Launcher** | <http://127.0.0.1:8080> | `maude-launcher` (nginx) | Front door — scans `$WORKSPACE` for git repos, live-pings the others, one-click into the web terminal / chat |
+| **Chat UI** | <http://127.0.0.1:3000> | `maude-open-webui` | Open WebUI — non-agentic chat, routed through LiteLLM |
+| **Web terminal** | <http://127.0.0.1:7681> | `maude-webterm` (ttyd) | OpenCode in the browser — real PTY, real on-disk edits |
+| **OpenAI API** | <http://127.0.0.1:4000> | `maude-litellm` | OpenAI-compatible endpoint — model name `qwen-coder`, key `sk-maude-local` |
+| **Model server** | <http://127.0.0.1:11434> | `maude-ollama` (docker mode) **or** host Ollama (metal mode) | Ollama serving `qwen3-coder:30b`; OpenCode and the web terminal talk here **directly** |
+
+### Environment variables
+
+All optional — sensible defaults are baked in. Set them inline before the
+script (`MODE=metal ./turnup.sh`) or export them for the session.
+
+| Variable | Read by | Default | Effect |
+|---|---|---|---|
+| `MODE` | `turnup.sh`, `maude` | `docker` | `docker` = containerised Ollama (CPU); `metal` = host Ollama (Apple GPU). `maude-cpu`/`maude-gpu` just preset this. |
+| `WORKSPACE` | `turnup.sh` → compose | `$HOME` | Host dir bind-mounted into the web terminal and scanned by the launcher. Pin it to one repo to scope the browser agent. |
+| `MODEL_SIZE` | `fetch-assets.sh` | `30b` | Qwen3-Coder size tag to pre-pull (`qwen3-coder:<size>`). |
+| `MAUDE_UID` / `MAUDE_GID` | `turnup.sh` → compose | your `id -u` / `id -g` | UID/GID the web-terminal container runs as, so files it edits are owned by you (no `chown` dance). |
+| `OLLAMA_HOST` | metal mode | set to `0.0.0.0:11434` by `turnup.sh` | Makes host Ollama reachable from containers via `host.docker.internal`. |
+| `OLLAMA_KEEP_ALIVE` | host Ollama (metal) | Ollama default (~5 min) | How long the model stays resident between requests. Raise it for long agentic sessions — see [Troubleshooting](#troubleshooting). |
+
+The LiteLLM `master_key` (`sk-maude-local`) and the exposed `qwen-coder`
+model name live in `litellm/config.${MODE}.yaml`; the 32 k context cap is
+set in `opencode.json` (and `webterm/opencode.${MODE}.json` for the web
+terminal). Edit those files, not env vars, to change them.
+
 ## Deployment guide
 
 ### 1. One-time asset fetch (needs internet)
@@ -326,12 +360,54 @@ completion call.
 ### Agentic editing — `maude-gpu` driving OpenCode
 
 The launcher points OpenCode at this repo's `opencode.json` (which targets
-the local LiteLLM endpoint) and then `exec`s `opencode` in your CWD.
+the local Ollama endpoint directly — see [Architecture](#architecture))
+and then `exec`s `opencode` in your CWD.
 OpenCode reads and writes your files directly via structured tool calls —
 no container, no UID juggling. Below is `maude-gpu run "..."`, a one-shot
 non-interactive invocation that creates a file from scratch.
 
 ![maude-gpu](docs/screenshots/04-opencode-session.png)
+
+## Verification — does the agent actually work?
+
+"Good enough that you actually use it" is a testable claim, so here is the
+test. The battery below was run end-to-end against this stack (OpenCode
+1.15.7 → `qwen3-coder:30b` on host Ollama / Metal), each task in its own
+isolated scratch directory, and **every result was verified independently
+by running the produced code** — never by trusting the model's own
+self-report.
+
+| # | Capability exercised | Tools the agent used | Independent check | Result |
+|---|---|---|---|---|
+| 1 | Create a file | `write` | file written byte-exact; runs and prints expected output | ✅ PASS |
+| 2 | Read + edit (bug fix) | `read` → `edit` | `a-b`→`a+b`; correct on 4 non-sample inputs, not coincidental | ✅ PASS |
+| 3 | Grep across files + targeted edit | `grep` → `read` → `edit` | only the matching file changed; the other two byte-identical | ✅ PASS |
+| 4 | Full agentic loop | `bash` → `edit` → `bash` | ran tests, saw the failure, fixed the bug, **re-ran them green** | ✅ PASS |
+| 5 | Scaffold a unittest suite | `glob` → `read` → `write` → `bash` | generated suite survives mutation testing vs. 3 broken impls | ✅ PASS |
+| 6 | Refactor, preserve behaviour | `read` → `edit` → `bash` | duplication collapsed to one helper; output byte-identical | ✅ PASS |
+
+All six passed. The model picked the right tool for each job (grep to
+localise, shell to run the tests, a re-run to self-verify), made surgical
+edits with no collateral damage, and self-corrected — at **~2–2.7 min wall
+per task** (warm model), fully offline. That is exactly the short-loop
+sweet spot the intro promises.
+
+**What this does _not_ prove.** Every task was single-file, fully
+specified, with the edit location effectively handed to the model. Untested
+— and where a local 30 B is most likely to struggle — are: multi-file
+coordinated changes (edit a definition _and_ every call site), creating a
+new module and wiring it into existing code, recovering from its _own_
+broken edit, ambiguous / underspecified requests, pushing back on a false
+premise, and localising the right place to change in a large real repo.
+Scope tasks accordingly; see
+[How does it compare to Claude Opus?](#how-does-it-compare-to-claude-opus)
+for the wider picture.
+
+**Reliability note — read this before long sessions.** A long *headless*
+run (`maude run …`) can hang with no progress if Ollama unloads the model
+mid-task (idle keep-alive expiry) and the cold ~20 GB reload races
+OpenCode's in-flight request. It's a one-line fix —
+[pin the model](#troubleshooting) for the session.
 
 ## OpenAI-compatible endpoint
 
@@ -551,6 +627,30 @@ or `docker rm -f maude-ollama`.
 service so it picks up the new bind. If you started Ollama some other way,
 make sure it's not bound to loopback only.
 
+**A long agentic run hangs with no progress (headless / `maude run`).**
+If `opencode run` sits idle for minutes and `ollama ps` shows *no* model
+loaded, Ollama unloaded the model between two tool-loop calls (default
+keep-alive is ~5 min) and the cold reload of the ~20 GB model stalled the
+in-flight request. Short single-shot tasks rarely hit this; long
+multi-step refactors are the exposed case. Pin the model in memory for the
+session before a long run:
+
+```bash
+curl -s http://127.0.0.1:11434/api/generate \
+  -d '{"model":"qwen3-coder:30b","prompt":"ok","keep_alive":"30m","stream":false,"options":{"num_predict":1}}'
+```
+
+Or make it permanent (metal mode):
+
+```bash
+launchctl setenv OLLAMA_KEEP_ALIVE -1   # -1 = never unload
+brew services restart ollama
+```
+
+Release a pin with `"keep_alive": 0`. In docker mode, add an
+`environment:` block setting `OLLAMA_KEEP_ALIVE` to the `ollama` service in
+`docker-compose.yml` (it doesn't have one by default).
+
 ## Notes
 
 - Qwen 3 Coder 30B-A3B is roughly mid-tier on agentic coding benchmarks:
@@ -567,21 +667,21 @@ make sure it's not bound to loopback only.
 
 | Language | Files | Lines | Blanks | Comments | Code | Complexity |
 |---|---|---|---|---|---|---|
-| Shell | 4 | 462 | 56 | 99 | 307 | 64 |
+| Shell | 4 | 528 | 63 | 114 | 351 | 72 |
 | BASH | 3 | 45 | 7 | 18 | 20 | 5 |
 | JSON | 3 | 69 | 0 | 0 | 69 | 0 |
 | YAML | 3 | 187 | 12 | 45 | 130 | 0 |
-| Markdown | 2 | 592 | 116 | 0 | 476 | 0 |
+| Markdown | 2 | 693 | 134 | 0 | 559 | 0 |
 | CSS | 1 | 207 | 18 | 37 | 152 | 0 |
 | Dockerfile | 1 | 55 | 9 | 17 | 29 | 9 |
-| HTML | 1 | 531 | 38 | 0 | 493 | 0 |
+| HTML | 1 | 830 | 67 | 2 | 761 | 0 |
 | Python | 1 | 0 | 0 | 0 | 0 | 0 |
-| **Total** | **19** | **2,148** | **256** | **216** | **1,676** | **78** |
+| **Total** | **19** | **2,614** | **310** | **233** | **2,071** | **86** |
 
-- **Estimated Cost to Develop (organic):** $46,460
-- **Estimated Schedule Effort (organic):** 4.28 months
-- **Estimated People Required (organic):** 0.96
-- **Processed:** 84,357 bytes (0.084 megabytes)
+- **Estimated Cost to Develop (organic):** $58,020
+- **Estimated Schedule Effort (organic):** 4.66 months
+- **Estimated People Required (organic):** 1.11
+- **Processed:** 101,980 bytes (0.102 megabytes)
 
-*Generated with [scc](https://github.com/boyter/scc) on 2026-05-23*
+*Generated with [scc](https://github.com/boyter/scc) on 2026-05-31*
 <!-- scc-end -->
