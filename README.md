@@ -665,6 +665,17 @@ Release a pin with `"keep_alive": 0`. In docker mode, add an
 <!-- scc-start -->
 ## Code Statistics
 
+```mermaid
+pie showData
+    title Code by language
+    "HTML" : 761
+    "Markdown" : 559
+    "Shell" : 351
+    "CSS" : 152
+    "YAML" : 130
+    "Other" : 118
+```
+
 | Language | Files | Lines | Blanks | Comments | Code | Complexity |
 |---|---|---|---|---|---|---|
 | Shell | 4 | 528 | 63 | 114 | 351 | 72 |
@@ -683,5 +694,5 @@ Release a pin with `"keep_alive": 0`. In docker mode, add an
 - **Estimated People Required (organic):** 1.11
 - **Processed:** 101,980 bytes (0.102 megabytes)
 
-*Generated with [scc](https://github.com/boyter/scc) on 2026-05-31*
+*Generated with [scc](https://github.com/boyter/scc) on 2026-09-09*
 <!-- scc-end -->
